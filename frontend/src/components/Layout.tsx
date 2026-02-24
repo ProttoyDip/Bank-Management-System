@@ -26,7 +26,7 @@ import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 const DRAWER_WIDTH = 260;
 
 const navItems = [
-  { label: "Dashboard", path: "/", icon: <DashboardIcon /> },
+  { label: "Dashboard", path: "/dashboard", icon: <DashboardIcon /> },
   { label: "Users", path: "/users", icon: <PeopleIcon /> },
   { label: "Accounts", path: "/accounts", icon: <AccountBalanceIcon /> },
   { label: "Transfer", path: "/transfer", icon: <SwapHorizIcon /> },
