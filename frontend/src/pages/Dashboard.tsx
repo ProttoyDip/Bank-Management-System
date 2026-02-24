@@ -3,12 +3,12 @@ import {
   Box,
   Card,
   CardContent,
-  Grid,
   Typography,
   Skeleton,
   Chip,
   Alert,
 } from "@mui/material";
+import Grid from "@mui/material/Grid2";
 import PeopleIcon from "@mui/icons-material/People";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import SavingsIcon from "@mui/icons-material/Savings";
@@ -98,7 +98,7 @@ export default function Dashboard() {
       {/* Stat Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         {stats.map((stat) => (
-          <Grid xs={12} sm={6} md={3} key={stat.title}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }} key={stat.title}>
             {loading ? (
               <Skeleton variant="rounded" height={140} />
             ) : (
@@ -148,7 +148,7 @@ export default function Dashboard() {
       ) : (
         <Grid container spacing={2}>
           {accounts.slice(0, 6).map((account) => (
-            <Grid xs={12} sm={6} md={4} key={account.id}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={account.id}>
               <Card sx={{ border: "1px solid", borderColor: "divider" }}>
                 <CardContent>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
