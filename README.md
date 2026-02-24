@@ -115,7 +115,7 @@ Relationships among these entities ensure data consistency, integrity, and effic
 
 | Component | Technology |
 |-----------|-----------|
-| Database Engine | MySQL |
+| Database Engine | Microsoft SQL Server |
 | ER Modeling Tool | Lucidchart / Draw.io |
 | Back-End | Node.js / Java / Python (Django) |
 | Version Control | Git / GitHub |
@@ -126,7 +126,7 @@ Relationships among these entities ensure data consistency, integrity, and effic
 
 ### Prerequisites
 
-- [MySQL](https://www.mysql.com/) installed and running
+- [Microsoft SQL Server](https://www.microsoft.com/en-us/sql-server/) installed and running
 - [Git](https://git-scm.com/) for version control
 
 ### Clone the Repository
@@ -139,8 +139,10 @@ cd Bank-Management-System
 ### Database Setup
 
 ```sql
-CREATE DATABASE bank_management_system;
-USE bank_management_system;
+CREATE DATABASE BankManagementSystem;
+GO
+USE BankManagementSystem;
+GO
 -- Run the provided SQL scripts to create tables and seed data
 ```
 
