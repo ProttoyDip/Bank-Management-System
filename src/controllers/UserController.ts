@@ -7,11 +7,22 @@ export class UserController {
     static async create(req: Request, res: Response): Promise<void> {
         try {
             const userRepository = AppDataSource.getRepository(User);
-            const { name, email, phone, address } = req.body;
+            const { name, email, phone, address, password } = req.body;
 
             // Validate required fields
             if (!name || !email) {
                 res.status(400).json({ error: "Name and email are required" });
+                return;
+            }
+
+            // Validate password
+            if (!password) {
+                res.status(400).json({ error: "Password is required" });
+                return;
+            }
+
+            if (password.length < 6) {
+                res.status(400).json({ error: "Password must be at least 6 characters" });
                 return;
             }
 
@@ -22,7 +33,7 @@ export class UserController {
                 return;
             }
 
-            const user = userRepository.create({ name, email, phone, address });
+            const user = userRepository.create({ name, email, phone, address, password });
             const savedUser = await userRepository.save(user);
 
             res.status(201).json({

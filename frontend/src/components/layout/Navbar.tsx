@@ -21,6 +21,8 @@ import PersonIcon from "@mui/icons-material/Person";
 import SettingsIcon from "@mui/icons-material/Settings";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 
 interface NavbarProps {
   onMenuClick: () => void;
@@ -38,6 +40,9 @@ export default function Navbar({ onMenuClick, sidebarWidth }: NavbarProps) {
   const [notifAnchor, setNotifAnchor] = useState<null | HTMLElement>(null);
   const [searchFocused, setSearchFocused] = useState(false);
 
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+
   const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
   };
@@ -49,6 +54,22 @@ export default function Navbar({ onMenuClick, sidebarWidth }: NavbarProps) {
   const handleClose = () => {
     setAnchorEl(null);
     setNotifAnchor(null);
+  };
+
+  const handleProfileClick = () => {
+    handleClose();
+    navigate("/admin/settings");
+  };
+
+  const handleSettingsClick = () => {
+    handleClose();
+    navigate("/admin/settings");
+  };
+
+  const handleLogoutClick = () => {
+    handleClose();
+    logout();
+    navigate("/login");
   };
 
   return (
@@ -236,20 +257,20 @@ export default function Navbar({ onMenuClick, sidebarWidth }: NavbarProps) {
             </Typography>
           </Box>
           <Divider />
-          <MenuItem onClick={handleClose}>
+          <MenuItem onClick={handleProfileClick}>
             <ListItemIcon>
               <PersonIcon fontSize="small" />
             </ListItemIcon>
             My Profile
           </MenuItem>
-          <MenuItem onClick={handleClose}>
+          <MenuItem onClick={handleSettingsClick}>
             <ListItemIcon>
               <SettingsIcon fontSize="small" />
             </ListItemIcon>
             Settings
           </MenuItem>
           <Divider />
-          <MenuItem onClick={handleClose} sx={{ color: "error.main" }}>
+          <MenuItem onClick={handleLogoutClick} sx={{ color: "error.main" }}>
             <ListItemIcon>
               <LogoutIcon fontSize="small" color="error" />
             </ListItemIcon>
