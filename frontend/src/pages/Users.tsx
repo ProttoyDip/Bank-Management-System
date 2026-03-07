@@ -18,7 +18,6 @@ import {
   TextField,
   Alert,
   Snackbar,
-  Skeleton,
   Chip,
   Tooltip,
 } from "@mui/material";
@@ -94,71 +93,82 @@ export default function Users() {
   };
 
   return (
-    <Box>
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+    <Box sx={{ maxWidth: 1600, mx: "auto" }}>
+      {/* Page Header */}
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          mb: 4,
+          flexDirection: { xs: "column", sm: "row" },
+          gap: { xs: 2, sm: 0 },
+        }}
+      >
         <Box>
-          <Typography variant="h4">Users</Typography>
+          <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>Users</Typography>
           <Typography variant="body2" color="text.secondary">
             Manage bank customers
           </Typography>
         </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} sx={{ fontWeight: 600 }}>
           Add User
         </Button>
       </Box>
 
-      {loading ? (
-        <Skeleton variant="rounded" height={300} />
-      ) : users.length === 0 ? (
+      {/* Users Table */}
+      {!loading && users.length === 0 ? (
         <Card sx={{ border: "1px solid", borderColor: "divider", textAlign: "center", py: 6 }}>
           <Typography color="text.secondary">No users found. Click "Add User" to get started.</Typography>
         </Card>
       ) : (
-        <TableContainer component={Card} sx={{ border: "1px solid", borderColor: "divider" }}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>ID</TableCell>
-                <TableCell>Name</TableCell>
-                <TableCell>Email</TableCell>
-                <TableCell>Phone</TableCell>
-                <TableCell>Accounts</TableCell>
-                <TableCell align="right">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id} hover>
-                  <TableCell>{user.id}</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>{user.name}</TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>{user.phone || "—"}</TableCell>
-                  <TableCell>
-                    <Chip label={user.accounts?.length ?? 0} size="small" color="primary" variant="outlined" />
-                  </TableCell>
-                  <TableCell align="right">
-                    <Tooltip title="Edit">
-                      <IconButton size="small" color="primary" onClick={() => openEdit(user)}>
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Delete">
-                      <IconButton size="small" color="error" onClick={() => handleDelete(user.id)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
+        <Card sx={{ border: "1px solid", borderColor: "divider" }}>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600 }}>ID</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Phone</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Accounts</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {users.map((user) => (
+                  <TableRow key={user.id} hover>
+                    <TableCell>{user.id}</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>{user.name}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>{user.phone || "—"}</TableCell>
+                    <TableCell>
+                      <Chip label={user.accounts?.length ?? 0} size="small" color="primary" variant="outlined" sx={{ fontWeight: 500 }} />
+                    </TableCell>
+                    <TableCell align="right">
+                      <Tooltip title="Edit">
+                        <IconButton size="small" color="primary" onClick={() => openEdit(user)}>
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete">
+                        <IconButton size="small" color="error" onClick={() => handleDelete(user.id)}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Card>
       )}
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{editingUser ? "Edit User" : "Create New User"}</DialogTitle>
-        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "16px !important" }}>
+        <DialogTitle sx={{ fontWeight: 600 }}>{editingUser ? "Edit User" : "Create New User"}</DialogTitle>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: "16px !important" }}>
           <TextField
             label="Name"
             required
@@ -206,3 +216,4 @@ export default function Users() {
     </Box>
   );
 }
+

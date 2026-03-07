@@ -18,7 +18,6 @@ import {
   MenuItem,
   Alert,
   Snackbar,
-  Skeleton,
   Chip,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
@@ -86,79 +85,90 @@ export default function Accounts() {
   };
 
   return (
-    <Box>
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+    <Box sx={{ maxWidth: 1600, mx: "auto" }}>
+      {/* Page Header */}
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          mb: 4,
+          flexDirection: { xs: "column", sm: "row" },
+          gap: { xs: 2, sm: 0 },
+        }}
+      >
         <Box>
-          <Typography variant="h4">Accounts</Typography>
+          <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>Accounts</Typography>
           <Typography variant="body2" color="text.secondary">
             Manage bank accounts
           </Typography>
         </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialogOpen(true)}>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialogOpen(true)} sx={{ fontWeight: 600 }}>
           New Account
         </Button>
       </Box>
 
-      {loading ? (
-        <Skeleton variant="rounded" height={300} />
-      ) : accounts.length === 0 ? (
+      {/* Accounts Table */}
+      {!loading && accounts.length === 0 ? (
         <Card sx={{ border: "1px solid", borderColor: "divider", textAlign: "center", py: 6 }}>
           <Typography color="text.secondary">
             No accounts found. Click "New Account" to create one.
           </Typography>
         </Card>
       ) : (
-        <TableContainer component={Card} sx={{ border: "1px solid", borderColor: "divider" }}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Account #</TableCell>
-                <TableCell>Owner</TableCell>
-                <TableCell>Type</TableCell>
-                <TableCell align="right">Balance</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Created</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {accounts.map((acc) => (
-                <TableRow key={acc.id} hover>
-                  <TableCell sx={{ fontFamily: "monospace", fontWeight: 600 }}>{acc.accountNumber}</TableCell>
-                  <TableCell>{acc.user?.name ?? `User #${acc.userId}`}</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={acc.type}
-                      size="small"
-                      color={typeColor(acc.type) as any}
-                      variant="outlined"
-                      sx={{ fontWeight: 600, fontSize: "0.7rem" }}
-                    />
-                  </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700, fontFamily: "monospace" }}>
-                    ৳ {Number(acc.balance).toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={acc.isActive ? "Active" : "Inactive"}
-                      size="small"
-                      color={acc.isActive ? "success" : "default"}
-                      sx={{ fontWeight: 600, fontSize: "0.7rem" }}
-                    />
-                  </TableCell>
-                  <TableCell sx={{ color: "text.secondary", fontSize: "0.85rem" }}>
-                    {new Date(acc.createdAt).toLocaleDateString()}
-                  </TableCell>
+        <Card sx={{ border: "1px solid", borderColor: "divider" }}>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600 }}>Account #</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Owner</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 600 }}>Balance</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Created</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {accounts.map((acc) => (
+                  <TableRow key={acc.id} hover>
+                    <TableCell sx={{ fontFamily: "monospace", fontWeight: 600 }}>{acc.accountNumber}</TableCell>
+                    <TableCell>{acc.user?.name ?? `User #${acc.userId}`}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={acc.type}
+                        size="small"
+                        color={typeColor(acc.type) as any}
+                        variant="outlined"
+                        sx={{ fontWeight: 600, fontSize: "0.7rem" }}
+                      />
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700, fontFamily: "monospace" }}>
+                      ৳ {Number(acc.balance).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={acc.isActive ? "Active" : "Inactive"}
+                        size="small"
+                        color={acc.isActive ? "success" : "default"}
+                        sx={{ fontWeight: 600, fontSize: "0.7rem" }}
+                      />
+                    </TableCell>
+                    <TableCell sx={{ color: "text.secondary", fontSize: "0.85rem" }}>
+                      {new Date(acc.createdAt).toLocaleDateString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Card>
       )}
 
       {/* Create Account Dialog */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Create New Account</DialogTitle>
-        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "16px !important" }}>
+        <DialogTitle sx={{ fontWeight: 600 }}>Create New Account</DialogTitle>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: "16px !important" }}>
           <TextField
             select
             label="Select User"
