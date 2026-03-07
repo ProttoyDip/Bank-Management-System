@@ -25,6 +25,9 @@ export class User {
     @Column({ type: "nvarchar", length: 255, nullable: true })
     address!: string;
 
+    @Column({ type: "nvarchar", length: 255, nullable: true })
+    password!: string;
+
     @OneToMany(() => Account, (account) => account.user, { cascade: true })
     accounts!: Account[];
 

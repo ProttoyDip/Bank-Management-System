@@ -7,17 +7,18 @@ import * as dotenv from "dotenv"
 dotenv.config()
 
 // Build connection string for msnodesqlv8 (supports named instances + Windows Auth)
-const server = process.env.DB_HOST || "localhost";
-const port = parseInt(process.env.DB_PORT || "1433");
-const database = process.env.DB_NAME || "BankManagementSystem";
+// Using hardcoded values for SQLEXPRESS instance - override .env if needed
+const server = "DESKTOP-EBM0COB";
+const port = 59110;
+const database = "BankManagementSystem";
 
 export const AppDataSource = new DataSource({
     type: "mssql",
     host: server,
     port: port,
     database: database,
-    username: process.env.DB_USERNAME || "sa",
-    password: process.env.DB_PASSWORD || "",
+    username: "sa",
+    password: "12345678",
     options: {
         encrypt: false,
         trustServerCertificate: true,
