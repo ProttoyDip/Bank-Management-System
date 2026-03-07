@@ -11,7 +11,6 @@ import {
   ToggleButton,
   Alert,
   Snackbar,
-  Skeleton,
   Divider,
 } from "@mui/material";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
@@ -64,23 +63,22 @@ export default function Transfer() {
   };
 
   return (
-    <Box>
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h4">Transfer</Typography>
+    <Box sx={{ maxWidth: 600, mx: "auto" }}>
+      {/* Page Header */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>Transfer</Typography>
         <Typography variant="body2" color="text.secondary">
           Deposit or withdraw money from an account
         </Typography>
       </Box>
 
-      {loading ? (
-        <Skeleton variant="rounded" height={400} sx={{ maxWidth: 500 }} />
-      ) : accounts.length === 0 ? (
-        <Card sx={{ border: "1px solid", borderColor: "divider", textAlign: "center", py: 6, maxWidth: 500 }}>
+      {!loading && accounts.length === 0 ? (
+        <Card sx={{ border: "1px solid", borderColor: "divider", textAlign: "center", py: 6 }}>
           <Typography color="text.secondary">No accounts available. Create an account first.</Typography>
         </Card>
       ) : (
-        <Card sx={{ border: "1px solid", borderColor: "divider", maxWidth: 500 }}>
-          <CardContent sx={{ p: 3, display: "flex", flexDirection: "column", gap: 2.5 }}>
+        <Card sx={{ border: "1px solid", borderColor: "divider" }}>
+          <CardContent sx={{ p: 4, display: "flex", flexDirection: "column", gap: 3 }}>
             {/* Mode Toggle */}
             <ToggleButtonGroup
               value={mode}
@@ -132,13 +130,13 @@ export default function Transfer() {
                 sx={{
                   bgcolor: "background.default",
                   borderRadius: 2,
-                  p: 2,
+                  p: 2.5,
                   textAlign: "center",
                   border: "1px solid",
                   borderColor: "divider",
                 }}
               >
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
                   Current Balance
                 </Typography>
                 <Typography variant="h5" sx={{ fontWeight: 700, fontFamily: "monospace" }}>
