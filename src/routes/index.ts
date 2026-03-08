@@ -1,6 +1,8 @@
 import { Router } from "express";
 import userRoutes from "./userRoutes";
 import accountRoutes from "./accountRoutes";
+import loanRoutes from "./loanRoutes";
+import transactionRoutes from "./transactionRoutes";
 
 const router = Router();
 
@@ -55,6 +57,21 @@ router.get("/", (_req, res) => {
                 <div class="row"><span class="method post">POST</span><a>/api/accounts/:id/deposit</a><span class="desc">Deposit money</span></div>
                 <div class="row"><span class="method post">POST</span><a>/api/accounts/:id/withdraw</a><span class="desc">Withdraw money</span></div>
             </div>
+
+            <div class="section">
+                <h3>Loans</h3>
+                <div class="row"><span class="method post">POST</span><a href="/api/loans">/api/loans</a><span class="desc">Apply for a loan</span></div>
+                <div class="row"><span class="method get">GET</span><a href="/api/loans">/api/loans</a><span class="desc">List all loans</span></div>
+                <div class="row"><span class="method get">GET</span><a>/api/loans/:id</a><span class="desc">Get loan by ID</span></div>
+                <div class="row"><span class="method put">PUT</span><a>/api/loans/:id/approve</a><span class="desc">Approve a loan</span></div>
+                <div class="row"><span class="method put">PUT</span><a>/api/loans/:id/reject</a><span class="desc">Reject a loan</span></div>
+            </div>
+
+            <div class="section">
+                <h3>Transactions</h3>
+                <div class="row"><span class="method get">GET</span><a href="/api/transactions">/api/transactions</a><span class="desc">List all transactions</span></div>
+                <div class="row"><span class="method get">GET</span><a>/api/transactions/account/:accountId</a><span class="desc">Transactions by account</span></div>
+            </div>
         </div>
     </body>
     </html>
@@ -63,5 +80,7 @@ router.get("/", (_req, res) => {
 
 router.use("/users", userRoutes);
 router.use("/accounts", accountRoutes);
+router.use("/loans", loanRoutes);
+router.use("/transactions", transactionRoutes);
 
 export default router;

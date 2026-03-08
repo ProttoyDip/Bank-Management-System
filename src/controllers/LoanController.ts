@@ -1,0 +1,193 @@
+import { Request, Response } from "express";
+import { AppDataSource } from "../data-source";
+import { Loan, LoanStatus, LoanType } from "../entity/Loan";
+import { User } from "../entity/User";
+import { Account } from "../entity/Account";
+import { generateLoanNumber, calculateEMI } from "../utils/helpers";
+
+export class LoanController {
+    // POST /api/loans — Create a new loan
+    static async create(req: Request, res: Response): Promise<void> {
+        try {
+            const loanRepository = AppDataSource.getRepository(Loan);
+            const userRepository = AppDataSource.getRepository(User);
+            const accountRepository = AppDataSource.getRepository(Account);
+            const { userId, accountId, type, amount, interestRate, duration } = req.body;
+
+            if (!userId || !accountId || !amount || !interestRate || !duration) {
+                res.status(400).json({ error: "userId, accountId, amount, interestRate, and duration are required" });
+                return;
+            }
+
+            // Validate loan type
+            const validTypes = Object.values(LoanType);
+            if (type && !validTypes.includes(type)) {
+                res.status(400).json({
+                    error: `Invalid loan type. Must be one of: ${validTypes.join(", ")}`,
+                });
+                return;
+            }
+
+            // Check if user exists
+            const user = await userRepository.findOneBy({ id: userId });
+            if (!user) {
+                res.status(404).json({ error: "User not found" });
+                return;
+            }
+
+            // Check if account exists
+            const account = await accountRepository.findOneBy({ id: accountId });
+            if (!account) {
+                res.status(404).json({ error: "Account not found" });
+                return;
+            }
+
+            const monthlyPayment = calculateEMI(Number(amount), Number(interestRate), Number(duration));
+
+            const loan = loanRepository.create({
+                loanNumber: generateLoanNumber(),
+                userId,
+                accountId,
+                type: type || LoanType.PERSONAL,
+                amount,
+                interestRate,
+                duration,
+                monthlyPayment: Math.round(monthlyPayment * 100) / 100,
+                remainingBalance: amount,
+                status: LoanStatus.PENDING,
+                startDate: null,
+                endDate: null,
+            });
+
+            const savedLoan = await loanRepository.save(loan);
+
+            res.status(201).json({
+                message: "Loan application created successfully",
+                data: savedLoan,
+            });
+        } catch (error) {
+            console.error("Error creating loan:", error);
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
+    // GET /api/loans — Get all loans
+    static async getAll(req: Request, res: Response): Promise<void> {
+        try {
+            const loanRepository = AppDataSource.getRepository(Loan);
+            const loans = await loanRepository.find({ relations: ["user", "account"] });
+            res.json({ data: loans });
+        } catch (error) {
+            console.error("Error fetching loans:", error);
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
+    // GET /api/loans/:id — Get loan by ID
+    static async getById(req: Request, res: Response): Promise<void> {
+        try {
+            const loanRepository = AppDataSource.getRepository(Loan);
+            const id = parseInt(req.params.id as string);
+
+            if (isNaN(id)) {
+                res.status(400).json({ error: "Invalid loan ID" });
+                return;
+            }
+
+            const loan = await loanRepository.findOne({
+                where: { id },
+                relations: ["user", "account"],
+            });
+
+            if (!loan) {
+                res.status(404).json({ error: "Loan not found" });
+                return;
+            }
+
+            res.json({ data: loan });
+        } catch (error) {
+            console.error("Error fetching loan:", error);
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
+    // PUT /api/loans/:id/approve — Approve a pending loan
+    static async approve(req: Request, res: Response): Promise<void> {
+        try {
+            const loanRepository = AppDataSource.getRepository(Loan);
+            const id = parseInt(req.params.id as string);
+
+            if (isNaN(id)) {
+                res.status(400).json({ error: "Invalid loan ID" });
+                return;
+            }
+
+            const loan = await loanRepository.findOneBy({ id });
+
+            if (!loan) {
+                res.status(404).json({ error: "Loan not found" });
+                return;
+            }
+
+            if (loan.status !== LoanStatus.PENDING) {
+                res.status(400).json({ error: "Only pending loans can be approved" });
+                return;
+            }
+
+            const startDate = new Date();
+            const endDate = new Date(startDate);
+            endDate.setMonth(endDate.getMonth() + loan.duration);
+
+            loan.status = LoanStatus.APPROVED;
+            loan.startDate = startDate;
+            loan.endDate = endDate;
+
+            const updatedLoan = await loanRepository.save(loan);
+
+            res.json({
+                message: "Loan approved successfully",
+                data: updatedLoan,
+            });
+        } catch (error) {
+            console.error("Error approving loan:", error);
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
+    // PUT /api/loans/:id/reject — Reject a pending loan
+    static async reject(req: Request, res: Response): Promise<void> {
+        try {
+            const loanRepository = AppDataSource.getRepository(Loan);
+            const id = parseInt(req.params.id as string);
+
+            if (isNaN(id)) {
+                res.status(400).json({ error: "Invalid loan ID" });
+                return;
+            }
+
+            const loan = await loanRepository.findOneBy({ id });
+
+            if (!loan) {
+                res.status(404).json({ error: "Loan not found" });
+                return;
+            }
+
+            if (loan.status !== LoanStatus.PENDING) {
+                res.status(400).json({ error: "Only pending loans can be rejected" });
+                return;
+            }
+
+            loan.status = LoanStatus.REJECTED;
+
+            const updatedLoan = await loanRepository.save(loan);
+
+            res.json({
+                message: "Loan rejected",
+                data: updatedLoan,
+            });
+        } catch (error) {
+            console.error("Error rejecting loan:", error);
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+}

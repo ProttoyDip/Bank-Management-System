@@ -2,6 +2,10 @@ import "reflect-metadata"
 import { DataSource } from "typeorm"
 import { User } from "./entity/User"
 import { Account } from "./entity/Account"
+import { Loan } from "./entity/Loan"
+import { Transaction } from "./entity/Transaction"
+import { Employee } from "./entity/Employee"
+import { Branch } from "./entity/Branch"
 import * as dotenv from "dotenv"
 
 dotenv.config()
@@ -27,7 +31,7 @@ export const AppDataSource = new DataSource({
     // Standard TypeORM settings
     synchronize: true,
     logging: true,
-    entities: [User, Account],
+    entities: [User, Account, Loan, Transaction, Employee, Branch],
     migrations: [],
     subscribers: [],
 })
