@@ -3,6 +3,7 @@ import { Box, Typography, Card, CardContent, Grid, Chip, Button, Alert } from "@
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import { Account, ApiResponse, Transaction, TransactionType, User } from "../../types";
@@ -28,6 +29,7 @@ function getTxKind(type: TransactionType): "deposit" | "withdraw" | "transfer" {
 
 export default function CustomerDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,7 +116,7 @@ export default function CustomerDashboard() {
                 <CardContent sx={{ textAlign: "center", py: 3 }}>
                   <ArrowDownwardIcon sx={{ color: "success.main", fontSize: 32, mb: 1 }} />
                   <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Deposit</Typography>
-                  <Button variant="contained" color="success" size="small">Deposit Money</Button>
+                  <Button variant="contained" color="success" size="small" onClick={() => navigate("/customer/transfer")}>Deposit Money</Button>
                 </CardContent>
               </Card>
             </Grid>
@@ -134,7 +136,7 @@ export default function CustomerDashboard() {
                 <CardContent sx={{ textAlign: "center", py: 3 }}>
                   <ArrowUpwardIcon sx={{ color: "error.main", fontSize: 32, mb: 1 }} />
                   <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Withdraw</Typography>
-                  <Button variant="contained" color="error" size="small">Withdraw Money</Button>
+                  <Button variant="contained" color="error" size="small" onClick={() => navigate("/customer/transfer")}>Withdraw Money</Button>
                 </CardContent>
               </Card>
             </Grid>
