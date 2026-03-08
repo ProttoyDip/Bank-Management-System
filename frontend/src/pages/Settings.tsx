@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Box,
   Typography,
@@ -18,15 +18,40 @@ import { motion } from "framer-motion";
 import PersonIcon from "@mui/icons-material/Person";
 import LockIcon from "@mui/icons-material/Lock";
 import NotificationsIcon from "@mui/icons-material/Notifications";
+import { useAuth } from "../context/AuthContext";
+import api from "../services/api";
+import { ApiResponse, User } from "../types";
 
 export default function Settings() {
+  const { user: authUser } = useAuth();
   const [snack, setSnack] = useState({ open: false, message: "" });
   const [profile, setProfile] = useState({
-    name: "Admin User",
-    email: "admin@bank.com",
-    phone: "+880 1234567890",
-    address: " Dhaka, Bangladesh",
+    name: "",
+    email: "",
+    phone: "",
+    address: "",
   });
+
+  useEffect(() => {
+    if (authUser) {
+      api.get<ApiResponse<User>>(`/users/${authUser.id}`).then((res) => {
+        const u = res.data.data;
+        setProfile({
+          name: u.name || "",
+          email: u.email || "",
+          phone: u.phone || "",
+          address: u.address || "",
+        });
+      }).catch(() => {
+        setProfile({
+          name: authUser.name || "",
+          email: authUser.email || "",
+          phone: "",
+          address: "",
+        });
+      });
+    }
+  }, [authUser]);
   const [notifications, setNotifications] = useState({
     email: true,
     sms: false,
@@ -67,11 +92,11 @@ export default function Settings() {
 
               <Box sx={{ display: "flex", alignItems: "center", gap: 3, mb: 3 }}>
                 <Avatar sx={{ width: 80, height: 80, bgcolor: "primary.main", fontSize: "2rem", fontWeight: 600 }}>
-                  A
+                  {profile.name?.charAt(0)?.toUpperCase() || authUser?.name?.charAt(0)?.toUpperCase() || "U"}
                 </Avatar>
                 <Box>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{profile.name}</Typography>
-                  <Typography variant="body2" color="text.secondary">Administrator</Typography>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{profile.name || authUser?.name}</Typography>
+                  <Typography variant="body2" color="text.secondary">{authUser?.role || "User"}</Typography>
                 </Box>
               </Box>
 

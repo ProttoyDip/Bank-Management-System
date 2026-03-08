@@ -177,7 +177,7 @@ export default function AdminLayout() {
                   {user?.name || "Admin User"}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  admin@bank.com
+                  {user?.email || "admin@bank.com"}
                 </Typography>
               </Box>
               <MenuItem>Profile</MenuItem>

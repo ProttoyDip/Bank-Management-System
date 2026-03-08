@@ -5,12 +5,31 @@ import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
-import { Account, ApiResponse, User } from "../../types";
+import { Account, ApiResponse, Transaction, TransactionType, User } from "../../types";
 import { motion } from "framer-motion";
+
+function getTxKind(type: TransactionType): "deposit" | "withdraw" | "transfer" {
+  if (
+    type === TransactionType.DEPOSIT ||
+    type === TransactionType.TRANSFER_IN ||
+    type === TransactionType.LOAN_DISBURSEMENT
+  ) {
+    return "deposit";
+  }
+  if (
+    type === TransactionType.WITHDRAW ||
+    type === TransactionType.TRANSFER_OUT ||
+    type === TransactionType.LOAN_PAYMENT
+  ) {
+    return "withdraw";
+  }
+  return "transfer";
+}
 
 export default function CustomerDashboard() {
   const { user } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -19,7 +38,22 @@ export default function CustomerDashboard() {
       try {
         if (user) {
           const res = await api.get<ApiResponse<User>>(`/users/${user.id}`);
-          setAccounts(res.data.data.accounts || []);
+          const userAccounts = res.data.data.accounts || [];
+          setAccounts(userAccounts);
+
+          // Fetch transactions for each account
+          const txResults = await Promise.all(
+            userAccounts.map((acc) =>
+              api
+                .get<ApiResponse<Transaction[]>>(`/transactions/account/${acc.id}`)
+                .then((r) => r.data.data)
+                .catch(() => [] as Transaction[])
+            )
+          );
+          const allTx = txResults.flat().sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+          setRecentTransactions(allTx.slice(0, 5));
         }
       } catch {
         setError("Failed to load account data.");
@@ -31,12 +65,6 @@ export default function CustomerDashboard() {
   }, [user]);
 
   const totalBalance = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
-
-  const recentTransactions = [
-    { id: 1, type: "deposit", amount: 5000, date: "2024-01-15", description: "Cash Deposit" },
-    { id: 2, type: "withdraw", amount: 2000, date: "2024-01-14", description: "ATM Withdrawal" },
-    { id: 3, type: "transfer", amount: 1500, date: "2024-01-13", description: "Transfer to John" },
-  ];
 
   return (
     <Box sx={{ maxWidth: 1600, mx: "auto" }}>
@@ -168,56 +196,66 @@ export default function CustomerDashboard() {
       <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>Recent Transactions</Typography>
       <Card sx={{ border: "1px solid", borderColor: "divider" }}>
         <CardContent sx={{ p: 0 }}>
-          {recentTransactions.map((tx, index) => (
-            <Box 
-              key={tx.id} 
-              sx={{ 
-                display: "flex", 
-                justifyContent: "space-between", 
-                alignItems: "center", 
-                py: 2.5, 
-                px: 3,
-                borderBottom: index < recentTransactions.length - 1 ? "1px solid" : "none",
-                borderColor: "divider",
-              }}
-            >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                <Box sx={{ 
-                  width: 44, 
-                  height: 44, 
-                  borderRadius: "50%", 
-                  bgcolor: tx.type === "deposit" ? "success.light" : tx.type === "withdraw" ? "error.light" : "warning.light", 
-                  display: "flex", 
-                  alignItems: "center", 
-                  justifyContent: "center" 
-                }}>
-                  {tx.type === "deposit" ? (
-                    <ArrowDownwardIcon sx={{ color: "success.main", fontSize: 20 }} />
-                  ) : tx.type === "withdraw" ? (
-                    <ArrowUpwardIcon sx={{ color: "error.main", fontSize: 20 }} />
-                  ) : (
-                    <SwapHorizIcon sx={{ color: "warning.main", fontSize: 20 }} />
-                  )}
-                </Box>
-                <Box>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{tx.description}</Typography>
-                  <Typography variant="caption" color="text.secondary">{tx.date}</Typography>
-                </Box>
-              </Box>
-              <Typography 
-                variant="h6" 
-                sx={{ 
-                  fontWeight: 600, 
-                  color: tx.type === "deposit" ? "success.main" : "error.main" 
-                }}
-              >
-                {tx.type === "deposit" ? "+" : "-"} ৳ {tx.amount.toLocaleString()}
-              </Typography>
+          {recentTransactions.length === 0 && !loading ? (
+            <Box sx={{ py: 4, textAlign: "center" }}>
+              <Typography color="text.secondary">No transactions found.</Typography>
             </Box>
-          ))}
+          ) : (
+            recentTransactions.map((tx, index) => {
+              const txKind = getTxKind(tx.type);
+              return (
+                <Box
+                  key={tx.id}
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    py: 2.5,
+                    px: 3,
+                    borderBottom: index < recentTransactions.length - 1 ? "1px solid" : "none",
+                    borderColor: "divider",
+                  }}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                    <Box sx={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: "50%",
+                      bgcolor: txKind === "deposit" ? "success.light" : txKind === "withdraw" ? "error.light" : "warning.light",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center"
+                    }}>
+                      {txKind === "deposit" ? (
+                        <ArrowDownwardIcon sx={{ color: "success.main", fontSize: 20 }} />
+                      ) : txKind === "withdraw" ? (
+                        <ArrowUpwardIcon sx={{ color: "error.main", fontSize: 20 }} />
+                      ) : (
+                        <SwapHorizIcon sx={{ color: "warning.main", fontSize: 20 }} />
+                      )}
+                    </Box>
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{tx.description || tx.type}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {new Date(tx.createdAt).toLocaleDateString()}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontWeight: 600,
+                      color: txKind === "deposit" ? "success.main" : "error.main"
+                    }}
+                  >
+                    {txKind === "deposit" ? "+" : "-"} ৳ {Number(tx.amount).toLocaleString()}
+                  </Typography>
+                </Box>
+              );
+            })
+          )}
         </CardContent>
       </Card>
     </Box>
   );
 }
-

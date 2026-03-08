@@ -31,6 +31,8 @@ import FinancialReports from "./pages/reports/FinancialReports";
 import Settings from "./pages/Settings";
 import Users from "./pages/Users";
 
+import CustomerAccounts from "./pages/customers/CustomerAccounts";
+
 export default function App() {
   return (
     <ThemeProvider theme={theme}>
@@ -71,7 +73,7 @@ export default function App() {
             {/* Customer Routes */}
             <Route path="/customer" element={<CustomerLayout />}>
               <Route path="dashboard" element={<CustomerDashboard />} />
-              <Route path="accounts" element={<Accounts />} />
+              <Route path="accounts" element={<CustomerAccounts />} />
               <Route path="transactions" element={<TransactionHistory />} />
               <Route path="loans" element={<LoanList />} />
               <Route path="settings" element={<Settings />} />

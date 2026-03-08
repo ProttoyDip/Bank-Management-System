@@ -175,7 +175,7 @@ export default function EmployeeLayout() {
                   {user?.name || "Employee"}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  employee@bank.com
+                  {user?.email || "employee@bank.com"}
                 </Typography>
               </Box>
               <MenuItem>Profile</MenuItem>

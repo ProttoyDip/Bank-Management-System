@@ -1,4 +1,5 @@
-import { Box, Card, CardContent, Typography, useTheme } from "@mui/material";
+import { useEffect, useState } from "react";
+import { Box, useTheme } from "@mui/material";
 import {
   PieChart,
   Pie,
@@ -7,80 +8,95 @@ import {
   Legend,
   Tooltip,
 } from "recharts";
-import { motion } from "framer-motion";
+import api from "../../services/api";
+import { ApiResponse, Loan, LoanType } from "../../types";
 
-interface LoanChartProps {
-  data?: Array<{
-    name: string;
-    value: number;
-    color: string;
-  }>;
+interface LoanChartEntry {
+  name: string;
+  value: number;
+  color: string;
 }
 
-const defaultData = [
-  { name: "Personal Loans", value: 35, color: "#3b82f6" },
-  { name: "Home Loans", value: 28, color: "#8b5cf6" },
-  { name: "Car Loans", value: 18, color: "#06b6d4" },
-  { name: "Education Loans", value: 12, color: "#10b981" },
-  { name: "Business Loans", value: 7, color: "#f59e0b" },
-];
+interface LoanChartProps {
+  data?: LoanChartEntry[];
+}
 
-export default function LoanChart({ data = defaultData }: LoanChartProps) {
+const LOAN_COLORS: Record<string, string> = {
+  [LoanType.PERSONAL]: "#3b82f6",
+  [LoanType.HOME]: "#8b5cf6",
+  [LoanType.CAR]: "#06b6d4",
+  [LoanType.EDUCATION]: "#10b981",
+  [LoanType.BUSINESS]: "#f59e0b",
+};
+
+export default function LoanChart({ data }: LoanChartProps) {
   const theme = useTheme();
+  const [chartData, setChartData] = useState<LoanChartEntry[]>([]);
+
+  useEffect(() => {
+    if (data) {
+      setChartData(data);
+      return;
+    }
+    api.get<ApiResponse<Loan[]>>("/loans").then((res) => {
+      const loans = res.data.data;
+      const counts: Record<string, number> = {};
+      loans.forEach((loan) => {
+        counts[loan.type] = (counts[loan.type] || 0) + 1;
+      });
+      const entries = Object.values(LoanType)
+        .map((type) => ({
+          name: type,
+          value: counts[type] || 0,
+          color: LOAN_COLORS[type] || "#94a3b8",
+        }))
+        .filter((e) => e.value > 0);
+      setChartData(entries);
+    }).catch(() => {
+      setChartData([]);
+    });
+  }, [data]);
 
   return (
-    <Card
-      component={motion.div}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: 0.3 }}
-      sx={{ height: "100%" }}
-    >
-      <CardContent>
-        <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-          Loan Distribution
-        </Typography>
-        <Box sx={{ width: "100%", height: 300 }}>
-          <ResponsiveContainer>
-            <PieChart>
-              <Pie
-                data={data}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={100}
-                paddingAngle={2}
-                dataKey="value"
-              label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
-                labelLine={false}
-              >
-                {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: theme.palette.background.paper,
-                  border: `1px solid ${theme.palette.divider}`,
-                  borderRadius: 8,
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                }}
-                formatter={(value) => [`${value}%`, "Share"]}
-              />
-              <Legend 
-                verticalAlign="bottom" 
-                height={36}
-                formatter={(value) => (
-                  <span style={{ color: theme.palette.text.primary, fontSize: 12 }}>
-                    {value}
-                  </span>
-                )}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        </Box>
-      </CardContent>
-    </Card>
+    <Box sx={{ width: "100%", height: 300 }}>
+      <ResponsiveContainer>
+        <PieChart>
+          <Pie
+            data={chartData}
+            cx="50%"
+            cy="50%"
+            innerRadius={60}
+            outerRadius={100}
+            paddingAngle={2}
+            dataKey="value"
+            label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+            labelLine={false}
+          >
+            {chartData.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={entry.color} />
+            ))}
+          </Pie>
+          <Tooltip
+            contentStyle={{
+              backgroundColor: theme.palette.background.paper,
+              border: `1px solid ${theme.palette.divider}`,
+              borderRadius: 8,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+            }}
+            formatter={(value) => [`${value} loan(s)`, "Count"]}
+          />
+          <Legend
+            verticalAlign="bottom"
+            height={36}
+            formatter={(value) => (
+              <span style={{ color: theme.palette.text.primary, fontSize: 12 }}>
+                {value}
+              </span>
+            )}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+    </Box>
   );
 }
 

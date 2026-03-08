@@ -24,7 +24,7 @@ import {
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import api from "../../services/api";
-import { Loan, LoanType, LoanStatus, User, Account, ApiResponse } from "../../types";
+import { Loan, LoanType, LoanStatus, User, Account, ApiResponse, CreateLoanPayload } from "../../types";
 import { motion } from "framer-motion";
 import {
   BarChart,
@@ -37,80 +37,24 @@ import {
 } from "recharts";
 
 const loanTypes = Object.values(LoanType);
-const loanStatuses = Object.values(LoanStatus);
 
-// Mock data for demo
-const mockLoans: Loan[] = [
-  {
-    id: 1,
-    loanNumber: "LN-2024-001",
-    userId: 1,
-    accountId: 1,
-    type: LoanType.HOME,
-    amount: 500000,
-    interestRate: 8.5,
-    duration: 240,
-    monthlyPayment: 4343.52,
-    remainingBalance: 450000,
-    status: LoanStatus.ACTIVE,
-    startDate: "2024-01-15",
-    endDate: "2044-01-15",
-    createdAt: "2024-01-15",
-    updatedAt: "2024-01-15",
-  },
-  {
-    id: 2,
-    loanNumber: "LN-2024-002",
-    userId: 2,
-    accountId: 2,
-    type: LoanType.PERSONAL,
-    amount: 100000,
-    interestRate: 12,
-    duration: 36,
-    monthlyPayment: 3321.45,
-    remainingBalance: 85000,
-    status: LoanStatus.ACTIVE,
-    startDate: "2024-03-01",
-    endDate: "2027-03-01",
-    createdAt: "2024-03-01",
-    updatedAt: "2024-03-01",
-  },
-  {
-    id: 3,
-    loanNumber: "LN-2024-003",
-    userId: 3,
-    accountId: 3,
-    type: LoanType.CAR,
-    amount: 300000,
-    interestRate: 10,
-    duration: 60,
-    monthlyPayment: 6374.25,
-    remainingBalance: 280000,
-    status: LoanStatus.ACTIVE,
-    startDate: "2024-02-15",
-    endDate: "2029-02-15",
-    createdAt: "2024-02-15",
-    updatedAt: "2024-02-15",
-  },
-];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-const chartData = [
-  { month: "Jan", approved: 12, rejected: 2 },
-  { month: "Feb", approved: 15, rejected: 3 },
-  { month: "Mar", approved: 18, rejected: 2 },
-  { month: "Apr", approved: 14, rejected: 1 },
-  { month: "May", approved: 20, rejected: 4 },
-  { month: "Jun", approved: 22, rejected: 3 },
-];
+interface ChartEntry {
+  month: string;
+  approved: number;
+  rejected: number;
+}
 
 export default function LoanList() {
-  const [loans, setLoans] = useState<Loan[]>(mockLoans);
-  const [loading, setLoading] = useState(false);
+  const [loans, setLoans] = useState<Loan[]>([]);
+  const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [chartData, setChartData] = useState<ChartEntry[]>([]);
   const [snack, setSnack] = useState({ open: false, message: "", severity: "success" as "success" | "error" });
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<Omit<CreateLoanPayload, "amount" | "interestRate" | "duration"> & { amount: string; interestRate: string; duration: string }>({
     userId: 0,
     accountId: 0,
     type: LoanType.PERSONAL,
@@ -119,12 +63,49 @@ export default function LoanList() {
     duration: "12",
   });
 
-  // For demo, just use mock data
+  const fetchLoans = async () => {
+    try {
+      const res = await api.get<ApiResponse<Loan[]>>("/loans");
+      const data = res.data.data;
+      setLoans(data);
+
+      // Aggregate by month for chart
+      const agg: Record<string, ChartEntry> = {};
+      MONTHS.forEach((m) => { agg[m] = { month: m, approved: 0, rejected: 0 }; });
+      data.forEach((loan) => {
+        const month = MONTHS[new Date(loan.createdAt).getMonth()];
+        if (loan.status === LoanStatus.REJECTED) {
+          agg[month].rejected += 1;
+        } else {
+          agg[month].approved += 1;
+        }
+      });
+      setChartData(MONTHS.map((m) => agg[m]));
+    } catch {
+      setSnack({ open: true, message: "Failed to load loans", severity: "error" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    // In real app, fetch from API
-    setLoans(mockLoans);
-    setLoading(false);
+    const fetchAll = async () => {
+      await fetchLoans();
+      try {
+        const [usersRes, accountsRes] = await Promise.all([
+          api.get<ApiResponse<User[]>>("/users"),
+          api.get<ApiResponse<Account[]>>("/accounts"),
+        ]);
+        setUsers(usersRes.data.data);
+        setAccounts(accountsRes.data.data);
+      } catch {
+        // Non-critical: dialog will show empty dropdowns
+      }
+    };
+    fetchAll();
   }, []);
+
+  const filteredAccounts = accounts.filter((a) => a.userId === form.userId);
 
   const statusColor = (status: LoanStatus) => {
     switch (status) {
@@ -141,8 +122,32 @@ export default function LoanList() {
     }
   };
 
-  const totalDisbursed = loans.reduce((sum, l) => sum + l.amount, 0);
-  const totalOutstanding = loans.reduce((sum, l) => sum + l.remainingBalance, 0);
+  const handleCreate = async () => {
+    if (!form.userId || !form.accountId || !form.amount) {
+      setSnack({ open: true, message: "Please fill in all required fields", severity: "error" });
+      return;
+    }
+    try {
+      await api.post<ApiResponse<Loan>>("/loans", {
+        userId: form.userId,
+        accountId: form.accountId,
+        type: form.type,
+        amount: Number(form.amount),
+        interestRate: Number(form.interestRate),
+        duration: Number(form.duration),
+      });
+      setSnack({ open: true, message: "Loan application submitted successfully", severity: "success" });
+      setDialogOpen(false);
+      setForm({ userId: 0, accountId: 0, type: LoanType.PERSONAL, amount: "", interestRate: "10", duration: "12" });
+      fetchLoans();
+    } catch (err: any) {
+      const msg = err.response?.data?.error || "Failed to submit loan application";
+      setSnack({ open: true, message: msg, severity: "error" });
+    }
+  };
+
+  const totalDisbursed = loans.reduce((sum, l) => sum + Number(l.amount), 0);
+  const totalOutstanding = loans.reduce((sum, l) => sum + Number(l.remainingBalance), 0);
 
   return (
     <Box sx={{ maxWidth: 1600, mx: "auto" }}>
@@ -317,11 +322,23 @@ export default function LoanList() {
             label="Select Customer"
             fullWidth
             value={form.userId || ""}
-            onChange={(e) => setForm({ ...form, userId: Number(e.target.value) })}
+            onChange={(e) => setForm({ ...form, userId: Number(e.target.value), accountId: 0 })}
           >
-            <MenuItem value={1}>John Doe</MenuItem>
-            <MenuItem value={2}>Jane Smith</MenuItem>
-            <MenuItem value={3}>Bob Johnson</MenuItem>
+            {users.map((u) => (
+              <MenuItem key={u.id} value={u.id}>{u.name} ({u.email})</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label="Select Account"
+            fullWidth
+            value={form.accountId || ""}
+            onChange={(e) => setForm({ ...form, accountId: Number(e.target.value) })}
+            disabled={!form.userId}
+          >
+            {filteredAccounts.map((a) => (
+              <MenuItem key={a.id} value={a.id}>{a.accountNumber} ({a.type})</MenuItem>
+            ))}
           </TextField>
           <TextField
             select
@@ -358,7 +375,7 @@ export default function LoanList() {
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={() => setDialogOpen(false)}>
+          <Button variant="contained" onClick={handleCreate} disabled={!form.userId || !form.accountId || !form.amount}>
             Submit Application
           </Button>
         </DialogActions>
