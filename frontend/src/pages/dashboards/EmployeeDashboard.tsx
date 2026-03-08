@@ -5,7 +5,7 @@ import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import api from "../../services/api";
-import { User, Account, ApiResponse } from "../../types";
+import { User, Account, Transaction, ApiResponse } from "../../types";
 import TransactionChart from "../../components/charts/TransactionChart";
 import { motion } from "framer-motion";
 
@@ -19,18 +19,21 @@ interface StatCard {
 export default function EmployeeDashboard() {
   const [users, setUsers] = useState<User[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [usersRes, accountsRes] = await Promise.all([
+        const [usersRes, accountsRes, txRes] = await Promise.all([
           api.get<ApiResponse<User[]>>("/users"),
           api.get<ApiResponse<Account[]>>("/accounts"),
+          api.get<ApiResponse<Transaction[]>>("/transactions"),
         ]);
         setUsers(usersRes.data.data);
         setAccounts(accountsRes.data.data);
+        setTransactions(txRes.data.data);
       } catch {
         setError("Failed to load dashboard data.");
       } finally {
@@ -42,10 +45,15 @@ export default function EmployeeDashboard() {
 
   const totalBalance = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
 
+  const today = new Date().toDateString();
+  const transactionsToday = transactions.filter(
+    (tx) => new Date(tx.createdAt).toDateString() === today
+  ).length;
+
   const stats: StatCard[] = [
     { title: "Customers Served", value: users.length, icon: <PeopleIcon />, color: "#3b82f6" },
     { title: "Accounts Managed", value: accounts.length, icon: <AccountBalanceIcon />, color: "#22c55e" },
-    { title: "Transactions Today", value: 47, icon: <SwapHorizIcon />, color: "#f59e0b" },
+    { title: "Transactions Today", value: transactionsToday, icon: <SwapHorizIcon />, color: "#f59e0b" },
     { title: "Total Value", value: `৳ ${totalBalance.toLocaleString()}`, icon: <TrendingUpIcon />, color: "#8b5cf6" },
   ];
 

@@ -5,7 +5,7 @@ import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import SavingsIcon from "@mui/icons-material/Savings";
 import RequestQuoteIcon from "@mui/icons-material/RequestQuote";
 import api from "../../services/api";
-import { User, Account, ApiResponse } from "../../types";
+import { User, Account, Loan, LoanStatus, ApiResponse } from "../../types";
 import TransactionChart from "../../components/charts/TransactionChart";
 import LoanChart from "../../components/charts/LoanChart";
 import { motion } from "framer-motion";
@@ -15,24 +15,26 @@ interface StatCard {
   value: string | number;
   icon: React.ReactNode;
   color: string;
-  trend?: { value: number; isPositive: boolean };
 }
 
 export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [loans, setLoans] = useState<Loan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [usersRes, accountsRes] = await Promise.all([
+        const [usersRes, accountsRes, loansRes] = await Promise.all([
           api.get<ApiResponse<User[]>>("/users"),
           api.get<ApiResponse<Account[]>>("/accounts"),
+          api.get<ApiResponse<Loan[]>>("/loans"),
         ]);
         setUsers(usersRes.data.data);
         setAccounts(accountsRes.data.data);
+        setLoans(loansRes.data.data);
       } catch {
         setError("Failed to load dashboard data.");
       } finally {
@@ -43,7 +45,7 @@ export default function AdminDashboard() {
   }, []);
 
   const totalBalance = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
-  const activeAccounts = accounts.filter((a) => a.isActive).length;
+  const activeLoans = loans.filter((l) => l.status === LoanStatus.ACTIVE).length;
 
   const stats: StatCard[] = [
     {
@@ -51,18 +53,16 @@ export default function AdminDashboard() {
       value: users.length,
       icon: <PeopleIcon sx={{ fontSize: 28 }} />,
       color: "#3b82f6",
-      trend: { value: 12, isPositive: true },
     },
     {
       title: "Total Accounts",
       value: accounts.length,
       icon: <AccountBalanceIcon sx={{ fontSize: 28 }} />,
       color: "#22c55e",
-      trend: { value: 8, isPositive: true },
     },
     {
       title: "Active Loans",
-      value: 24,
+      value: activeLoans,
       icon: <RequestQuoteIcon sx={{ fontSize: 28 }} />,
       color: "#f59e0b",
     },
@@ -71,7 +71,6 @@ export default function AdminDashboard() {
       value: `৳ ${totalBalance.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
       icon: <SavingsIcon sx={{ fontSize: 28 }} />,
       color: "#8b5cf6",
-      trend: { value: 15, isPositive: true },
     },
   ];
 
@@ -103,11 +102,6 @@ export default function AdminDashboard() {
                       {stat.title}
                     </Typography>
                     <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>{stat.value}</Typography>
-                    {stat.trend && (
-                      <Typography variant="caption" color={stat.trend.isPositive ? "success.main" : "error.main"} sx={{ fontWeight: 500 }}>
-                        {stat.trend.isPositive ? "↑" : "↓"} {Math.abs(stat.trend.value)}% vs last month
-                      </Typography>
-                    )}
                   </Box>
                   <Box sx={{ 
                     width: 52, 

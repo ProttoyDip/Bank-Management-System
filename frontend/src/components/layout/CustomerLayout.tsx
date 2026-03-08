@@ -175,7 +175,7 @@ export default function CustomerLayout() {
                   {user?.name || "Customer"}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  customer@email.com
+                  {user?.email || "customer@email.com"}
                 </Typography>
               </Box>
               <MenuItem>Profile</MenuItem>
