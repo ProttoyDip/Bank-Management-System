@@ -25,6 +25,9 @@ export class User {
     @Column({ type: "nvarchar", length: 255, nullable: true })
     address!: string;
 
+    @Column({ type: "nvarchar", length: 20, default: "Customer" })
+    role!: string;
+
     @Column({ type: "nvarchar", length: 255, nullable: true })
     password!: string;
 
@@ -43,3 +46,24 @@ export class User {
     @UpdateDateColumn()
     updatedAt!: Date;
 }
+import { Router } from "express";
+import { UserController } from "../controllers/UserController";
+
+const router = Router();
+
+// Auth routes
+router.post("/login", UserController.login);
+
+// User CRUD routes
+router.post("/", UserController.create);
+router.get("/", UserController.getAll);
+router.get("/:id", UserController.getById);
+router.put("/:id", UserController.update);
+router.delete("/:id", UserController.delete);
+
+// Password reset routes
+router.post("/forgot-password", UserController.forgotPassword);
+router.post("/verify-code", UserController.verifyCode);
+router.post("/change-password", UserController.changePassword);
+
+export default router;

@@ -455,46 +455,23 @@ export default function VerifyCode() {
                   WebkitTextFillColor: "transparent",
                 }}
               >
-                BankPro
+                            BankPro
               </Typography>
-              <Typography
-                variant="body2"
-                sx={{ color: "rgba(255,255,255,0.7)", mb: 3, lineHeight: 1.8 }}
-              >
-                Comprehensive Bank Management System for modern financial institutions.
+              <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.7)", mb: 3, lineHeight: 1.8 }}>
+                Comprehensive Bank Management System for modern financial institutions. 
                 Secure, efficient, and scalable banking solutions.
               </Typography>
-              <Box sx={{ display: "flex", gap: 1 }}>
-                <IconButton
-                  sx={{
-                    color: "rgba(255,255,255,0.7)",
-                    "&:hover": { color: "primary.main" },
-                  }}
-                >
+              <Box sx={{ display: "flex", gap: 2 }}>
+                <IconButton sx={{ color: "rgba(255,255,255,0.7)", "&:hover": { color: "primary.main" } }}>
                   <FacebookIcon />
                 </IconButton>
-                <IconButton
-                  sx={{
-                    color: "rgba(255,255,255,0.7)",
-                    "&:hover": { color: "primary.main" },
-                  }}
-                >
+                <IconButton sx={{ color: "rgba(255,255,255,0.7)", "&:hover": { color: "primary.main" } }}>
                   <TwitterIcon />
                 </IconButton>
-                <IconButton
-                  sx={{
-                    color: "rgba(255,255,255,0.7)",
-                    "&:hover": { color: "primary.main" },
-                  }}
-                >
+                <IconButton sx={{ color: "rgba(255,255,255,0.7)", "&:hover": { color: "primary.main" } }}>
                   <LinkedInIcon />
                 </IconButton>
-                <IconButton
-                  sx={{
-                    color: "rgba(255,255,255,0.7)",
-                    "&:hover": { color: "primary.main" },
-                  }}
-                >
+                <IconButton sx={{ color: "rgba(255,255,255,0.7)", "&:hover": { color: "primary.main" } }}>
                   <InstagramIcon />
                 </IconButton>
               </Box>
@@ -504,21 +481,26 @@ export default function VerifyCode() {
                 Quick Links
               </Typography>
               <List disablePadding>
-                {["Home", "About", "Services", "Contact"].map((item) => (
-                  <ListItem key={item} disablePadding sx={{ py: 0.5 }}>
-                    <Link
-                      component={RouterLink}
-                      to={`#${item.toLowerCase()}`}
-                      underline="none"
-                      sx={{
-                        color: "rgba(255,255,255,0.7)",
-                        "&:hover": { color: "primary.main" },
-                      }}
-                    >
-                      {item}
-                    </Link>
-                  </ListItem>
-                ))}
+                <ListItem disablePadding sx={{ py: 0.5 }}>
+                  <Link component="a" href="/" onClick={(e) => { e.preventDefault(); navigate("/"); }} underline="none" sx={{ color: "rgba(255,255,255,0.7)", cursor: "pointer", "&:hover": { color: "primary.main" } }}>
+                    Home
+                  </Link>
+                </ListItem>
+                <ListItem disablePadding sx={{ py: 0.5 }}>
+                  <Link component="a" href="/#about" onClick={(e) => { e.preventDefault(); navigate("/#about"); setTimeout(() => { document.getElementById("about")?.scrollIntoView({ behavior: "smooth" }); }, 100); }} underline="none" sx={{ color: "rgba(255,255,255,0.7)", cursor: "pointer", "&:hover": { color: "primary.main" } }}>
+                    About
+                  </Link>
+                </ListItem>
+                <ListItem disablePadding sx={{ py: 0.5 }}>
+                  <Link component="a" href="/#features" onClick={(e) => { e.preventDefault(); navigate("/#features"); setTimeout(() => { document.getElementById("features")?.scrollIntoView({ behavior: "smooth" }); }, 100); }} underline="none" sx={{ color: "rgba(255,255,255,0.7)", cursor: "pointer", "&:hover": { color: "primary.main" } }}>
+                    Services
+                  </Link>
+                </ListItem>
+                <ListItem disablePadding sx={{ py: 0.5 }}>
+                  <Link component="a" href="/#contact" onClick={(e) => { e.preventDefault(); navigate("/#contact"); setTimeout(() => { document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" }); }, 100); }} underline="none" sx={{ color: "rgba(255,255,255,0.7)", cursor: "pointer", "&:hover": { color: "primary.main" } }}>
+                    Contact
+                  </Link>
+                </ListItem>
               </List>
             </Grid>
             <Grid size={{ xs: 6, md: 2 }}>
@@ -526,22 +508,26 @@ export default function VerifyCode() {
                 Services
               </Typography>
               <List disablePadding>
-                {["Account Management", "Loans", "Investments", "Transfers"].map(
-                  (item) => (
-                    <ListItem key={item} disablePadding sx={{ py: 0.5 }}>
-                      <Link
-                        href="#"
-                        underline="none"
-                        sx={{
-                          color: "rgba(255,255,255,0.7)",
-                          "&:hover": { color: "primary.main" },
-                        }}
-                      >
-                        {item}
-                      </Link>
-                    </ListItem>
-                  )
-                )}
+                <ListItem disablePadding sx={{ py: 0.5 }}>
+                  <Link component="a" href="/#features" onClick={(e) => { e.preventDefault(); navigate("/#features"); setTimeout(() => { document.getElementById("features")?.scrollIntoView({ behavior: "smooth" }); }, 100); }} underline="none" sx={{ color: "rgba(255,255,255,0.7)", cursor: "pointer", "&:hover": { color: "primary.main" } }}>
+                    Account Management
+                  </Link>
+                </ListItem>
+                <ListItem disablePadding sx={{ py: 0.5 }}>
+                  <Link component="a" href="/#features" onClick={(e) => { e.preventDefault(); navigate("/#features"); setTimeout(() => { document.getElementById("features")?.scrollIntoView({ behavior: "smooth" }); }, 100); }} underline="none" sx={{ color: "rgba(255,255,255,0.7)", cursor: "pointer", "&:hover": { color: "primary.main" } }}>
+                    Loans
+                  </Link>
+                </ListItem>
+                <ListItem disablePadding sx={{ py: 0.5 }}>
+                  <Link component="a" href="/#features" onClick={(e) => { e.preventDefault(); navigate("/#features"); setTimeout(() => { document.getElementById("features")?.scrollIntoView({ behavior: "smooth" }); }, 100); }} underline="none" sx={{ color: "rgba(255,255,255,0.7)", cursor: "pointer", "&:hover": { color: "primary.main" } }}>
+                    Investments
+                  </Link>
+                </ListItem>
+                <ListItem disablePadding sx={{ py: 0.5 }}>
+                  <Link component="a" href="/#features" onClick={(e) => { e.preventDefault(); navigate("/#features"); setTimeout(() => { document.getElementById("features")?.scrollIntoView({ behavior: "smooth" }); }, 100); }} underline="none" sx={{ color: "rgba(255,255,255,0.7)", cursor: "pointer", "&:hover": { color: "primary.main" } }}>
+                    Transfers
+                  </Link>
+                </ListItem>
               </List>
             </Grid>
             <Grid size={{ xs: 12, md: 4 }}>
@@ -551,29 +537,20 @@ export default function VerifyCode() {
               <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <PhoneAndroidIcon sx={{ color: "primary.main" }} />
-                  <Typography
-                    variant="body2"
-                    sx={{ color: "rgba(255,255,255,0.7)" }}
-                  >
-                    +1 (555) 123-4567
+                  <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.7)" }}>
+                    01968776048
                   </Typography>
                 </Box>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <LockIcon sx={{ color: "primary.main" }} />
-                  <Typography
-                    variant="body2"
-                    sx={{ color: "rgba(255,255,255,0.7)" }}
-                  >
+                  <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.7)" }}>
                     support@bankpro.com
                   </Typography>
                 </Box>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <StorefrontIcon sx={{ color: "primary.main" }} />
-                  <Typography
-                    variant="body2"
-                    sx={{ color: "rgba(255,255,255,0.7)" }}
-                  >
-                    123 Banking Street, Finance City
+                  <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.7)" }}>
+                   Eastern Galaxy,﻿109, Katasur, Sher-e-Bangla Road, Mohammadpur Dhaka-1207 
                   </Typography>
                 </Box>
               </Box>
@@ -581,18 +558,14 @@ export default function VerifyCode() {
           </Grid>
           <Box
             sx={{
-              mt: 4,
+              mt: 6,
               pt: 3,
               borderTop: "1px solid rgba(255,255,255,0.1)",
               textAlign: "center",
             }}
           >
-            <Typography
-              variant="body2"
-              sx={{ color: "rgba(255,255,255,0.5)" }}
-            >
-              © {new Date().getFullYear()} BankPro. All rights reserved. | Secure
-              Banking System
+            <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.5)" }}>
+              © {new Date().getFullYear()} BankPro. All rights reserved. | Secure Banking System
             </Typography>
           </Box>
         </Container>

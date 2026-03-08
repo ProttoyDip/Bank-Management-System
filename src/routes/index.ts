@@ -3,6 +3,7 @@ import userRoutes from "./userRoutes";
 import accountRoutes from "./accountRoutes";
 import loanRoutes from "./loanRoutes";
 import transactionRoutes from "./transactionRoutes";
+import testEmailRoute from "./testEmailRoute";
 
 const router = Router();
 
@@ -82,5 +83,6 @@ router.use("/users", userRoutes);
 router.use("/accounts", accountRoutes);
 router.use("/loans", loanRoutes);
 router.use("/transactions", transactionRoutes);
+router.use(testEmailRoute);
 
 export default router;

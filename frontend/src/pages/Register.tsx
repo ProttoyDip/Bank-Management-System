@@ -362,21 +362,35 @@ export default function Register() {
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Quick Links</Typography>
               <List disablePadding>
-                {["Home", "About", "Services", "Contact"].map((item) => (
-                  <ListItem key={item} disablePadding sx={{ py: 0.5 }}>
-                    <Link component={RouterLink} to="#" underline="none" sx={{ color: "rgba(255,255,255,0.7)" }}>{item}</Link>
-                  </ListItem>
-                ))}
+                <ListItem disablePadding sx={{ py: 0.5 }}>
+                  <Link component="a" href="/" onClick={(e) => { e.preventDefault(); navigate("/"); }} underline="none" sx={{ color: "rgba(255,255,255,0.7)", cursor: "pointer", "&:hover": { color: "primary.main" } }}>Home</Link>
+                </ListItem>
+                <ListItem disablePadding sx={{ py: 0.5 }}>
+                  <Link component="a" href="/#about" onClick={(e) => { e.preventDefault(); navigate("/#about"); setTimeout(() => { document.getElementById("about")?.scrollIntoView({ behavior: "smooth" }); }, 100); }} underline="none" sx={{ color: "rgba(255,255,255,0.7)", cursor: "pointer", "&:hover": { color: "primary.main" } }}>About</Link>
+                </ListItem>
+                <ListItem disablePadding sx={{ py: 0.5 }}>
+                  <Link component="a" href="/#features" onClick={(e) => { e.preventDefault(); navigate("/#features"); setTimeout(() => { document.getElementById("features")?.scrollIntoView({ behavior: "smooth" }); }, 100); }} underline="none" sx={{ color: "rgba(255,255,255,0.7)", cursor: "pointer", "&:hover": { color: "primary.main" } }}>Services</Link>
+                </ListItem>
+                <ListItem disablePadding sx={{ py: 0.5 }}>
+                  <Link component="a" href="/#contact" onClick={(e) => { e.preventDefault(); navigate("/#contact"); setTimeout(() => { document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" }); }, 100); }} underline="none" sx={{ color: "rgba(255,255,255,0.7)", cursor: "pointer", "&:hover": { color: "primary.main" } }}>Contact</Link>
+                </ListItem>
               </List>
             </Box>
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Services</Typography>
               <List disablePadding>
-                {["Account Management", "Loans", "Investments", "Transfers"].map((item) => (
-                  <ListItem key={item} disablePadding sx={{ py: 0.5 }}>
-                    <Link href="#" underline="none" sx={{ color: "rgba(255,255,255,0.7)" }}>{item}</Link>
-                  </ListItem>
-                ))}
+                <ListItem disablePadding sx={{ py: 0.5 }}>
+                  <Link component="a" href="/#features" onClick={(e) => { e.preventDefault(); navigate("/#features"); setTimeout(() => { document.getElementById("features")?.scrollIntoView({ behavior: "smooth" }); }, 100); }} underline="none" sx={{ color: "rgba(255,255,255,0.7)", cursor: "pointer", "&:hover": { color: "primary.main" } }}>Account Management</Link>
+                </ListItem>
+                <ListItem disablePadding sx={{ py: 0.5 }}>
+                  <Link component="a" href="/#features" onClick={(e) => { e.preventDefault(); navigate("/#features"); setTimeout(() => { document.getElementById("features")?.scrollIntoView({ behavior: "smooth" }); }, 100); }} underline="none" sx={{ color: "rgba(255,255,255,0.7)", cursor: "pointer", "&:hover": { color: "primary.main" } }}>Loans</Link>
+                </ListItem>
+                <ListItem disablePadding sx={{ py: 0.5 }}>
+                  <Link component="a" href="/#features" onClick={(e) => { e.preventDefault(); navigate("/#features"); setTimeout(() => { document.getElementById("features")?.scrollIntoView({ behavior: "smooth" }); }, 100); }} underline="none" sx={{ color: "rgba(255,255,255,0.7)", cursor: "pointer", "&:hover": { color: "primary.main" } }}>Investments</Link>
+                </ListItem>
+                <ListItem disablePadding sx={{ py: 0.5 }}>
+                  <Link component="a" href="/#features" onClick={(e) => { e.preventDefault(); navigate("/#features"); setTimeout(() => { document.getElementById("features")?.scrollIntoView({ behavior: "smooth" }); }, 100); }} underline="none" sx={{ color: "rgba(255,255,255,0.7)", cursor: "pointer", "&:hover": { color: "primary.main" } }}>Transfers</Link>
+                </ListItem>
               </List>
             </Box>
             <Box>

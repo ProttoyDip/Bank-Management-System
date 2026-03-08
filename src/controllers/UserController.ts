@@ -1,25 +1,57 @@
 import { Request, Response } from "express";
 import { AppDataSource } from "../data-source";
 import { User } from "../entity/User";
+import { login as authLogin, register as authRegister, changePassword as authChangePassword } from "../services/authService";
+import { hashPassword } from "../utils/hashPassword";
+import { sendVerificationEmail } from "../utils/emailService";
 
 // Helper function to generate verification code
 const generateVerificationCode = (): string => {
     return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
-// Helper function to send email (mock implementation)
-const sendVerificationEmail = async (email: string, code: string): Promise<void> => {
-    // In production, integrate with email service like SendGrid, Nodemailer, etc.
-    console.log(`Sending verification code ${code} to ${email}`);
-    console.log(`[MOCK EMAIL] Your verification code is: ${code}`);
-};
-
 export class UserController {
+    // POST /api/users/login — Login user and return JWT token
+    static async login(req: Request, res: Response): Promise<void> {
+        try {
+            const { email, password } = req.body;
+
+            // Validate required fields
+            if (!email || !password) {
+                res.status(400).json({ error: "Email and password are required" });
+                return;
+            }
+
+            // Authenticate user
+            const result = await authLogin(email, password);
+
+            if (!result.success) {
+                res.status(401).json({ error: result.error });
+                return;
+            }
+
+            // Return token and user info
+            res.json({
+                message: "Login successful",
+                token: result.token,
+                user: {
+                    id: result.user?.id,
+                    name: result.user?.name,
+                    email: result.user?.email,
+                    role: result.user?.role
+                }
+            });
+        } catch (error) {
+            console.error("Error in login:", error);
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
     // POST /api/users — Create a new user
     static async create(req: Request, res: Response): Promise<void> {
         try {
             const userRepository = AppDataSource.getRepository(User);
-            const { name, email, phone, address, password } = req.body;
+            const { name, email, phone, address, password, role } = req.body;
 
             // Validate required fields
             if (!name || !email) {
@@ -45,7 +77,17 @@ export class UserController {
                 return;
             }
 
-            const user = userRepository.create({ name, email, phone, address, password });
+            // Hash the password before saving
+            const hashedPassword = await hashPassword(password);
+
+            const user = userRepository.create({ 
+                name, 
+                email, 
+                phone, 
+                address, 
+                password: hashedPassword,
+                role: role || "Customer"
+            });
             const savedUser = await userRepository.save(user);
 
             res.status(201).json({
@@ -166,8 +208,8 @@ export class UserController {
             user.verificationExpiry = expiryDate;
             await userRepository.save(user);
 
-            // Send verification email (mock)
-            await sendVerificationEmail(email, verificationCode);
+            // Send verification email (real)
+            await sendVerificationEmail(email, verificationCode, user.name);
 
             res.json({ 
                 message: "Verification code sent to your email",
@@ -259,8 +301,9 @@ export class UserController {
                 return;
             }
 
-            // Update password
-            user.password = newPassword;
+            // Hash the new password before saving
+            const hashedPassword = await hashPassword(newPassword);
+            user.password = hashedPassword;
             user.verificationCode = ""; // Clear verification code
             user.verificationExpiry = null;
             await userRepository.save(user);
