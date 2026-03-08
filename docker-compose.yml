@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # SQL Server Database
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: bank-db
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=BankProject@123
+      - MSSQL_PID=Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+      - ./init-db.sql:/init-db.sql
+    healthcheck:
+      test: /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P BankProject@123 -Q "SELECT 1" || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - bank-network
+
+  # Backend API
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: bank-backend
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DB_HOST=db
+      - DB_PORT=1433
+      - DB_NAME=BankManagementSystem
+      - DB_USERNAME=sa
+      - DB_PASSWORD=12345678
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - bank-network
+
+  # Frontend React App
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: bank-frontend
+    environment:
+      - VITE_API_URL=http://localhost:3000/api
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - bank-network
+
+# Volume for SQL Server data persistence
+volumes:
+  mssql_data:
+    driver: local
+
+# Docker network for container communication
+networks:
+  bank-network:
+    driver: bridge
+

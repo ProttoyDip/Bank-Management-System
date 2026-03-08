@@ -16,9 +16,11 @@ import {
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import api from "../services/api";
-import type { Account, ApiResponse } from "../types";
+import { useAuth } from "../context/AuthContext";
+import type { Account, ApiResponse, User } from "../types";
 
 export default function Transfer() {
+  const { user } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<"deposit" | "withdraw">("deposit");
@@ -29,8 +31,15 @@ export default function Transfer() {
 
   const fetchAccounts = async () => {
     try {
-      const res = await api.get<ApiResponse<Account[]>>("/accounts");
-      setAccounts(res.data.data);
+      // If user is a customer, fetch only their accounts
+      if (user?.role === "customer") {
+        const res = await api.get<ApiResponse<User>>(`/users/${user.id}`);
+        setAccounts(res.data.data.accounts || []);
+      } else {
+        // For admin/employee, fetch all accounts
+        const res = await api.get<ApiResponse<Account[]>>("/accounts");
+        setAccounts(res.data.data);
+      }
     } catch {
       setSnack({ open: true, message: "Failed to load accounts", severity: "error" });
     } finally {
@@ -40,7 +49,7 @@ export default function Transfer() {
 
   useEffect(() => {
     fetchAccounts();
-  }, []);
+  }, [user]);
 
   const currentAccount = accounts.find((a) => a.id === selectedAccount);
 

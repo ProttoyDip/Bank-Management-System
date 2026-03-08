@@ -1,12 +1,12 @@
 import { Request, Response } from "express";
-import { AppDataSource } from "../data-source";
+import { getDataSource } from "../data-source";
 import { Transaction } from "../entity/Transaction";
 
 export class TransactionController {
     // GET /api/transactions — Get all transactions
     static async getAll(req: Request, res: Response): Promise<void> {
         try {
-            const transactionRepository = AppDataSource.getRepository(Transaction);
+            const transactionRepository = getDataSource().getRepository(Transaction);
             const transactions = await transactionRepository.find({ relations: ["account"] });
             res.json({ data: transactions });
         } catch (error) {
@@ -18,7 +18,7 @@ export class TransactionController {
     // GET /api/transactions/account/:accountId — Get transactions by account ID
     static async getByAccountId(req: Request, res: Response): Promise<void> {
         try {
-            const transactionRepository = AppDataSource.getRepository(Transaction);
+            const transactionRepository = getDataSource().getRepository(Transaction);
             const accountId = parseInt(req.params.accountId as string);
 
             if (isNaN(accountId)) {
@@ -37,3 +37,4 @@ export class TransactionController {
         }
     }
 }
+

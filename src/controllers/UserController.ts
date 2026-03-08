@@ -1,28 +1,32 @@
 import { Request, Response } from "express";
-import { AppDataSource } from "../data-source";
+import { getDataSource } from "../data-source";
 import { User } from "../entity/User";
-import { login as authLogin, register as authRegister, changePassword as authChangePassword } from "../services/authService";
+import { login as authLogin } from "../services/authService";
 import { hashPassword } from "../utils/hashPassword";
 import { sendVerificationEmail } from "../utils/emailService";
 
-// Helper function to generate verification code
+// verification code generator
 const generateVerificationCode = (): string => {
     return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
 export class UserController {
-    // POST /api/users/login — Login user and return JWT token
+
+    // ===============================
+    // LOGIN
+    // ===============================
     static async login(req: Request, res: Response): Promise<void> {
         try {
-            const { email, password } = req.body;
 
-            // Validate required fields
+            let { email, password } = req.body;
+
             if (!email || !password) {
                 res.status(400).json({ error: "Email and password are required" });
                 return;
             }
 
-            // Authenticate user
+            email = email.toLowerCase();
+
             const result = await authLogin(email, password);
 
             if (!result.success) {
@@ -30,7 +34,6 @@ export class UserController {
                 return;
             }
 
-            // Return token and user info
             res.json({
                 message: "Login successful",
                 token: result.token,
@@ -41,27 +44,25 @@ export class UserController {
                     role: result.user?.role
                 }
             });
+
         } catch (error) {
-            console.error("Error in login:", error);
+            console.error("Login error:", error);
             res.status(500).json({ error: "Internal server error" });
         }
     }
 
-    // POST /api/users — Create a new user
+    // ===============================
+    // CREATE USER
+    // ===============================
     static async create(req: Request, res: Response): Promise<void> {
         try {
-            const userRepository = AppDataSource.getRepository(User);
-            const { name, email, phone, address, password, role } = req.body;
 
-            // Validate required fields
-            if (!name || !email) {
-                res.status(400).json({ error: "Name and email are required" });
-                return;
-            }
+            const userRepository = getDataSource().getRepository(User);
 
-            // Validate password
-            if (!password) {
-                res.status(400).json({ error: "Password is required" });
+            let { name, email, phone, address, password, role } = req.body;
+
+            if (!name || !email || !password) {
+                res.status(400).json({ error: "Name, email and password are required" });
                 return;
             }
 
@@ -70,56 +71,72 @@ export class UserController {
                 return;
             }
 
-            // Check if email already exists
+            email = email.toLowerCase();
+
             const existingUser = await userRepository.findOneBy({ email });
+
             if (existingUser) {
-                res.status(409).json({ error: "A user with this email already exists" });
+                res.status(409).json({ error: "User already exists with this email" });
                 return;
             }
 
-            // Hash the password before saving
             const hashedPassword = await hashPassword(password);
 
-            const user = userRepository.create({ 
-                name, 
-                email, 
-                phone, 
-                address, 
+            const user = userRepository.create({
+                name,
+                email,
+                phone,
+                address,
                 password: hashedPassword,
                 role: role || "Customer"
             });
+
             const savedUser = await userRepository.save(user);
 
             res.status(201).json({
                 message: "User created successfully",
-                data: savedUser,
+                data: savedUser
             });
+
         } catch (error) {
-            console.error("Error creating user:", error);
+            console.error("Create user error:", error);
             res.status(500).json({ error: "Internal server error" });
         }
     }
 
-    // GET /api/users — Get all users (with their accounts)
+    // ===============================
+    // GET ALL USERS
+    // ===============================
     static async getAll(req: Request, res: Response): Promise<void> {
         try {
-            const userRepository = AppDataSource.getRepository(User);
-            const users = await userRepository.find({ relations: ["accounts"] });
+
+            const userRepository = getDataSource().getRepository(User);
+
+            const users = await userRepository.find({
+                relations: ["accounts"]
+            });
+
             res.json({ data: users });
+
         } catch (error) {
-            console.error("Error fetching users:", error);
+            console.error("Fetch users error:", error);
             res.status(500).json({ error: "Internal server error" });
         }
     }
 
-    // GET /api/users/:id — Get a single user by ID
+    // ===============================
+    // GET USER BY ID
+    // ===============================
     static async getById(req: Request, res: Response): Promise<void> {
         try {
-            const userRepository = AppDataSource.getRepository(User);
-            const id = parseInt(req.params.id as string);
+
+            const userRepository = getDataSource().getRepository(User);
+
+            const id = Number(req.params.id);
+
             const user = await userRepository.findOne({
                 where: { id },
-                relations: ["accounts"],
+                relations: ["accounts"]
             });
 
             if (!user) {
@@ -128,17 +145,22 @@ export class UserController {
             }
 
             res.json({ data: user });
+
         } catch (error) {
-            console.error("Error fetching user:", error);
+            console.error("Fetch user error:", error);
             res.status(500).json({ error: "Internal server error" });
         }
     }
 
-    // PUT /api/users/:id — Update a user
+    // ===============================
+    // UPDATE USER
+    // ===============================
     static async update(req: Request, res: Response): Promise<void> {
         try {
-            const userRepository = AppDataSource.getRepository(User);
-            const id = parseInt(req.params.id as string);
+
+            const userRepository = getDataSource().getRepository(User);
+            const id = Number(req.params.id);
+
             const user = await userRepository.findOneBy({ id });
 
             if (!user) {
@@ -146,24 +168,34 @@ export class UserController {
                 return;
             }
 
-            userRepository.merge(user, req.body);
+            const { name, phone, address } = req.body;
+
+            user.name = name ?? user.name;
+            user.phone = phone ?? user.phone;
+            user.address = address ?? user.address;
+
             const updatedUser = await userRepository.save(user);
 
             res.json({
                 message: "User updated successfully",
-                data: updatedUser,
+                data: updatedUser
             });
+
         } catch (error) {
-            console.error("Error updating user:", error);
+            console.error("Update user error:", error);
             res.status(500).json({ error: "Internal server error" });
         }
     }
 
-    // DELETE /api/users/:id — Delete a user
+    // ===============================
+    // DELETE USER
+    // ===============================
     static async delete(req: Request, res: Response): Promise<void> {
         try {
-            const userRepository = AppDataSource.getRepository(User);
-            const id = parseInt(req.params.id as string);
+
+            const userRepository = getDataSource().getRepository(User);
+            const id = Number(req.params.id);
+
             const result = await userRepository.delete(id);
 
             if (result.affected === 0) {
@@ -171,146 +203,164 @@ export class UserController {
                 return;
             }
 
-            res.json({ message: "User deleted successfully" });
+            res.json({
+                message: "User deleted successfully"
+            });
+
         } catch (error) {
-            console.error("Error deleting user:", error);
+            console.error("Delete user error:", error);
             res.status(500).json({ error: "Internal server error" });
         }
     }
 
-    // POST /api/users/forgot-password — Send verification code
+    // ===============================
+    // FORGOT PASSWORD
+    // ===============================
     static async forgotPassword(req: Request, res: Response): Promise<void> {
         try {
-            const userRepository = AppDataSource.getRepository(User);
-            const { email, role } = req.body;
 
-            // Validate required fields
-            if (!email || !role) {
-                res.status(400).json({ error: "Email and role are required" });
+            const userRepository = getDataSource().getRepository(User);
+            let { email } = req.body;
+
+            if (!email) {
+                res.status(400).json({ error: "Email is required" });
                 return;
             }
 
-            // Find user by email
+            email = email.toLowerCase();
+
             const user = await userRepository.findOneBy({ email });
+
             if (!user) {
-                // Don't reveal if user exists or not
-                res.json({ message: "If the email exists, a verification code will be sent" });
+                res.json({
+                    message: "If this email exists, a verification code will be sent"
+                });
                 return;
             }
 
-            // Generate verification code
-            const verificationCode = generateVerificationCode();
-            const expiryDate = new Date();
-            expiryDate.setMinutes(expiryDate.getMinutes() + 10); // 10 minutes expiry
+            const code = generateVerificationCode();
 
-            // Save verification code and expiry
-            user.verificationCode = verificationCode;
-            user.verificationExpiry = expiryDate;
+            const expiry = new Date();
+            expiry.setMinutes(expiry.getMinutes() + 10);
+
+            user.verificationCode = code;
+            user.verificationExpiry = expiry;
+
             await userRepository.save(user);
 
-            // Send verification email (real)
-            await sendVerificationEmail(email, verificationCode, user.name);
+            try {
+                await sendVerificationEmail(email, code, user.name);
+            } catch (err) {
+                console.error("Email sending failed:", err);
+            }
 
-            res.json({ 
-                message: "Verification code sent to your email",
-                // In production, don't send the code back
-                // For testing, we'll send it in development
-                ...(process.env.NODE_ENV !== 'production' && { verificationCode: verificationCode })
+            res.json({
+                message: "Verification code sent to email"
             });
+
         } catch (error) {
-            console.error("Error in forgot password:", error);
+            console.error("Forgot password error:", error);
             res.status(500).json({ error: "Internal server error" });
         }
     }
 
-    // POST /api/users/verify-code — Verify the code
+    // ===============================
+    // VERIFY CODE
+    // ===============================
     static async verifyCode(req: Request, res: Response): Promise<void> {
         try {
-            const userRepository = AppDataSource.getRepository(User);
+
+            const userRepository = getDataSource().getRepository(User);
+
             const { email, code } = req.body;
 
-            // Validate required fields
             if (!email || !code) {
-                res.status(400).json({ error: "Email and verification code are required" });
+                res.status(400).json({ error: "Email and code required" });
                 return;
             }
 
-            // Find user by email
             const user = await userRepository.findOneBy({ email });
+
             if (!user) {
                 res.status(404).json({ error: "User not found" });
                 return;
             }
 
-            // Check if code matches
             if (user.verificationCode !== code) {
-                res.status(400).json({ error: "Invalid verification code" });
+                res.status(400).json({ error: "Invalid code" });
                 return;
             }
 
-            // Check if code has expired
             if (!user.verificationExpiry || new Date() > user.verificationExpiry) {
-                res.status(400).json({ error: "Verification code has expired" });
+                res.status(400).json({ error: "Code expired" });
                 return;
             }
 
-            res.json({ 
-                message: "Verification successful",
-                userId: user.id
+            res.json({
+                message: "Verification successful"
             });
+
         } catch (error) {
-            console.error("Error in verify code:", error);
+            console.error("Verify code error:", error);
             res.status(500).json({ error: "Internal server error" });
         }
     }
 
-    // POST /api/users/change-password — Change password after verification
+    // ===============================
+    // CHANGE PASSWORD
+    // ===============================
     static async changePassword(req: Request, res: Response): Promise<void> {
         try {
-            const userRepository = AppDataSource.getRepository(User);
+
+            const userRepository = getDataSource().getRepository(User);
+
             const { email, code, newPassword } = req.body;
 
-            // Validate required fields
             if (!email || !code || !newPassword) {
-                res.status(400).json({ error: "Email, verification code, and new password are required" });
+                res.status(400).json({
+                    error: "Email, code and new password required"
+                });
                 return;
             }
 
-            // Validate password length
             if (newPassword.length < 6) {
-                res.status(400).json({ error: "Password must be at least 6 characters" });
+                res.status(400).json({
+                    error: "Password must be at least 6 characters"
+                });
                 return;
             }
 
-            // Find user by email
             const user = await userRepository.findOneBy({ email });
+
             if (!user) {
                 res.status(404).json({ error: "User not found" });
                 return;
             }
 
-            // Check if code matches
             if (user.verificationCode !== code) {
                 res.status(400).json({ error: "Invalid verification code" });
                 return;
             }
 
-            // Check if code has expired
             if (!user.verificationExpiry || new Date() > user.verificationExpiry) {
-                res.status(400).json({ error: "Verification code has expired" });
+                res.status(400).json({ error: "Verification code expired" });
                 return;
             }
 
-            // Hash the new password before saving
             const hashedPassword = await hashPassword(newPassword);
+
             user.password = hashedPassword;
-            user.verificationCode = ""; // Clear verification code
+            user.verificationCode = null;
             user.verificationExpiry = null;
+
             await userRepository.save(user);
 
-            res.json({ message: "Password changed successfully" });
+            res.json({
+                message: "Password changed successfully"
+            });
+
         } catch (error) {
-            console.error("Error in change password:", error);
+            console.error("Change password error:", error);
             res.status(500).json({ error: "Internal server error" });
         }
     }

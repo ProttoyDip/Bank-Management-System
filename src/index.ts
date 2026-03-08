@@ -2,7 +2,7 @@ import "reflect-metadata";
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { AppDataSource } from "./data-source";
+import { initializeDataSource, AppDataSource, LocalDataSource } from "./data-source";
 import routes from "./routes";
 import { errorHandler } from "./middleware/errorHandler";
 
@@ -67,8 +67,10 @@ app.use("/api", routes);
 app.use(errorHandler);
 
 // ── Database Connection & Server Start ───────────────────
-AppDataSource.initialize()
-    .then(() => {
+initializeDataSource()
+    .then((dataSource) => {
+        // Set the active dataSource for use in controllers
+        (global as any).dataSource = dataSource;
         console.log("✅ Database connected successfully!");
         console.log(`📦 Tables synchronized (Code-First)`);
 

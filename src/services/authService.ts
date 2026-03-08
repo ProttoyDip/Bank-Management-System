@@ -1,4 +1,4 @@
-import { AppDataSource } from "../data-source";
+import { getDataSource } from "../data-source";
 import { User } from "../entity/User";
 import { hashPassword, comparePassword } from "../utils/hashPassword";
 import { generateToken } from "../utils/generateToken";
@@ -14,7 +14,7 @@ interface LoginResult {
  * Authenticate a user and generate JWT token
  */
 export async function login(email: string, password: string): Promise<LoginResult> {
-    const userRepository = AppDataSource.getRepository(User);
+    const userRepository = getDataSource().getRepository(User);
 
     // Find user by email
     const user = await userRepository.findOneBy({ email });
@@ -61,7 +61,7 @@ export async function register(
     address?: string,
     role: string = "Customer"
 ): Promise<{ success: boolean; user?: User; error?: string }> {
-    const userRepository = AppDataSource.getRepository(User);
+    const userRepository = getDataSource().getRepository(User);
 
     // Check if user already exists
     const existingUser = await userRepository.findOneBy({ email });
@@ -101,7 +101,7 @@ export async function changePassword(
     oldPassword: string,
     newPassword: string
 ): Promise<{ success: boolean; error?: string }> {
-    const userRepository = AppDataSource.getRepository(User);
+    const userRepository = getDataSource().getRepository(User);
 
     const user = await userRepository.findOneBy({ id: userId });
     if (!user) {

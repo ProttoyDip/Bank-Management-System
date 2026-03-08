@@ -7,16 +7,17 @@ USE BankManagementSystem;
 GO
 
 -- ─── Users ───────────────────────────────────────────────────
+-- Password for all users: password123
 
 SET IDENTITY_INSERT users ON;
 
-INSERT INTO users (id, name, email, phone, address, password, createdAt, updatedAt)
+INSERT INTO users (id, name, email, phone, address, password, role, createdAt, updatedAt)
 VALUES
-    (1, N'Rahim Uddin',    N'rahim.uddin@example.com',    N'+8801711000001', N'123 Mirpur Road, Dhaka',           N'hashed_password_1', GETDATE(), GETDATE()),
-    (2, N'Fatema Akhter',  N'fatema.akhter@example.com',  N'+8801812000002', N'45 Agrabad, Chittagong',           N'hashed_password_2', GETDATE(), GETDATE()),
-    (3, N'Kamal Hossain',  N'kamal.hossain@example.com',  N'+8801913000003', N'78 Zindabazar, Sylhet',            N'hashed_password_3', GETDATE(), GETDATE()),
-    (4, N'Nasrin Begum',   N'nasrin.begum@example.com',   N'+8801611000004', N'22 Jessore Road, Khulna',          N'hashed_password_4', GETDATE(), GETDATE()),
-    (5, N'Tariqul Islam',  N'tariqul.islam@example.com',  N'+8801511000005', N'55 Shaheb Bazar, Rajshahi',        N'hashed_password_5', GETDATE(), GETDATE());
+    (1, N'Rahim Uddin',    N'rahim@example.com',    N'+8801711000001', N'123 Mirpur Road, Dhaka',           N'$2b$10$3lfPFiaHGTEpDNP5URbLwuUV4c7hgVWQWRtODsBtCc9ZFAqodWXX6', N'Admin', GETDATE(), GETDATE()),
+    (2, N'Fatema Akhter',  N'fatema@example.com',  N'+8801812000002', N'45 Agrabad, Chittagong',           N'$2b$10$3lfPFiaHGTEpDNP5URbLwuUV4c7hgVWQWRtODsBtCc9ZFAqodWXX6', N'Employee', GETDATE(), GETDATE()),
+    (3, N'Kamal Hossain',   N'kamal@example.com',   N'+8801913000003', N'78 Zindabazar, Sylhet',            N'$2b$10$3lfPFiaHGTEpDNP5URbLwuUV4c7hgVWQWRtODsBtCc9ZFAqodWXX6', N'Customer', GETDATE(), GETDATE()),
+    (4, N'Nasrin Begum',   N'nasrin@example.com',   N'+8801611000004', N'22 Jessore Road, Khulna',          N'$2b$10$3lfPFiaHGTEpDNP5URbLwuUV4c7hgVWQWRtODsBtCc9ZFAqodWXX6', N'Customer', GETDATE(), GETDATE()),
+    (5, N'Tariqul Islam',  N'tariq@example.com',  N'+8801511000005', N'55 Shaheb Bazar, Rajshahi',        N'$2b$10$3lfPFiaHGTEpDNP5URbLwuUV4c7hgVWQWRtODsBtCc9ZFAqodWXX6', N'Customer', GETDATE(), GETDATE());
 
 SET IDENTITY_INSERT users OFF;
 GO

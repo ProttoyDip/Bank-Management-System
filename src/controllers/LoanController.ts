@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { AppDataSource } from "../data-source";
+import { getDataSource } from "../data-source";
 import { Loan, LoanStatus, LoanType } from "../entity/Loan";
 import { User } from "../entity/User";
 import { Account } from "../entity/Account";
@@ -9,9 +9,9 @@ export class LoanController {
     // POST /api/loans — Create a new loan
     static async create(req: Request, res: Response): Promise<void> {
         try {
-            const loanRepository = AppDataSource.getRepository(Loan);
-            const userRepository = AppDataSource.getRepository(User);
-            const accountRepository = AppDataSource.getRepository(Account);
+            const loanRepository = getDataSource().getRepository(Loan);
+            const userRepository = getDataSource().getRepository(User);
+            const accountRepository = getDataSource().getRepository(Account);
             const { userId, accountId, type, amount, interestRate, duration } = req.body;
 
             if (!userId || !accountId || !amount || !interestRate || !duration) {
@@ -74,7 +74,7 @@ export class LoanController {
     // GET /api/loans — Get all loans
     static async getAll(req: Request, res: Response): Promise<void> {
         try {
-            const loanRepository = AppDataSource.getRepository(Loan);
+            const loanRepository = getDataSource().getRepository(Loan);
             const loans = await loanRepository.find({ relations: ["user", "account"] });
             res.json({ data: loans });
         } catch (error) {
@@ -86,7 +86,7 @@ export class LoanController {
     // GET /api/loans/:id — Get loan by ID
     static async getById(req: Request, res: Response): Promise<void> {
         try {
-            const loanRepository = AppDataSource.getRepository(Loan);
+            const loanRepository = getDataSource().getRepository(Loan);
             const id = parseInt(req.params.id as string);
 
             if (isNaN(id)) {
@@ -114,7 +114,7 @@ export class LoanController {
     // PUT /api/loans/:id/approve — Approve a pending loan
     static async approve(req: Request, res: Response): Promise<void> {
         try {
-            const loanRepository = AppDataSource.getRepository(Loan);
+            const loanRepository = getDataSource().getRepository(Loan);
             const id = parseInt(req.params.id as string);
 
             if (isNaN(id)) {
@@ -157,7 +157,7 @@ export class LoanController {
     // PUT /api/loans/:id/reject — Reject a pending loan
     static async reject(req: Request, res: Response): Promise<void> {
         try {
-            const loanRepository = AppDataSource.getRepository(Loan);
+            const loanRepository = getDataSource().getRepository(Loan);
             const id = parseInt(req.params.id as string);
 
             if (isNaN(id)) {
@@ -191,3 +191,4 @@ export class LoanController {
         }
     }
 }
+
