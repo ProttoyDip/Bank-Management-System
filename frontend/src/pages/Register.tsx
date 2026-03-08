@@ -24,13 +24,20 @@ import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
+import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import api from "../services/api";
-import { AccountType } from "../types";
+import { AccountType, UserRole } from "../types";
 
 const accountTypes = [
   { value: AccountType.SAVINGS, label: "Savings" },
   { value: AccountType.CURRENT, label: "Current" },
   { value: AccountType.FIXED_DEPOSIT, label: "Fixed Deposit" },
+];
+
+const roles = [
+  { id: "customer", label: "Customer", icon: AccountCircleIcon },
+  { id: "employee", label: "Employee", icon: AccountBalanceIcon },
+  { id: "admin", label: "Admin", icon: LockIcon },
 ];
 
 const floatingElements = [
@@ -68,6 +75,18 @@ export default function Register() {
   const [form, setForm] = useState({ firstName: "", lastName: "", phone: "", email: "", address: "", accountType: AccountType.SAVINGS, initialDeposit: "", password: "", confirmPassword: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [selectedRole, setSelectedRole] = useState("customer");
+
+  const getRoleFromId = (id: string): UserRole => {
+    switch (id) {
+      case "admin":
+        return UserRole.ADMIN;
+      case "employee":
+        return UserRole.EMPLOYEE;
+      default:
+        return UserRole.CUSTOMER;
+    }
+  };
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -102,8 +121,8 @@ export default function Register() {
     }
     
     try {
-      console.log("Creating user with:", { name: form.firstName + " " + form.lastName, email: form.email, phone: form.phone || undefined, address: form.address || undefined, password: form.password });
-      const userRes = await api.post("/users", { name: form.firstName + " " + form.lastName, email: form.email, phone: form.phone || undefined, address: form.address || undefined, password: form.password });
+      console.log("Creating user with:", { name: form.firstName + " " + form.lastName, email: form.email, phone: form.phone || undefined, address: form.address || undefined, password: form.password, role: getRoleFromId(selectedRole) });
+      const userRes = await api.post("/users", { name: form.firstName + " " + form.lastName, email: form.email, phone: form.phone || undefined, address: form.address || undefined, password: form.password, role: getRoleFromId(selectedRole) });
       console.log("User created:", userRes.data);
       const userId = userRes.data.data.id;
       
@@ -198,7 +217,7 @@ export default function Register() {
       </Box>
 
       {/* Registration Form */}
-      <Box sx={{ position: "relative", zIndex: 10, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", px: 2, py: { xs: 12, md: 0 } }}>
+      <Box sx={{ position: "relative", zIndex: 10, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", px: 2, py: { xs: 12, md: 0 }, pt: { xs: 14, sm: 11, md: 8 } }}>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={{ width: "100%", maxWidth: 500 }}>
           <Box sx={{ bgcolor: "rgba(255,255,255,0.08)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "24px", p: { xs: 3, md: 5 }, boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.4)" }}>
             {isMobile && (
@@ -212,6 +231,59 @@ export default function Register() {
               <Typography variant="h4" sx={{ fontWeight: 800, color: "white", mb: 1, fontSize: { xs: "1.5rem", md: "1.75rem" } }}>Create Your Account</Typography>
               <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.6)" }}>Join thousands of happy customers banking with us</Typography>
             </Box>
+
+            {/* Role Selection */}
+            <Box sx={{ display: "flex", gap: 1.5, mb: 3 }}>
+              {roles.map((role) => {
+                const Icon = role.icon;
+                const isSelected = selectedRole === role.id;
+                return (
+                  <motion.button
+                    key={role.id}
+                    type="button"
+                    onClick={() => setSelectedRole(role.id)}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    style={{
+                      flex: 1,
+                      padding: "12px 8px",
+                      borderRadius: "12px",
+                      border: `2px solid ${
+                        isSelected
+                          ? "#06b6d4"
+                          : "rgba(255,255,255,0.2)"
+                      }`,
+                      background: isSelected
+                        ? "rgba(6, 182, 212, 0.2)"
+                        : "rgba(255,255,255,0.05)",
+                      cursor: "pointer",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 6,
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    <Icon
+                      sx={{
+                        fontSize: 20,
+                        color: isSelected ? "#06b6d4" : "rgba(255,255,255,0.6)",
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 500,
+                        color: isSelected ? "#06b6d4" : "rgba(255,255,255,0.6)",
+                      }}
+                    >
+                      {role.label}
+                    </span>
+                  </motion.button>
+                );
+              })}
+            </Box>
+
             <AnimatePresence>{error && <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={{ marginBottom: 16, padding: 12, background: "rgba(239, 68, 68, 0.2)", borderRadius: 12, color: "#fca5a5", textAlign: "center", fontSize: "0.875rem" }}>{error}</motion.div>}</AnimatePresence>
             <Box component="form" onSubmit={handleSubmit}>
               <Typography variant="subtitle2" sx={{ mb: 1.5, textTransform: "uppercase", letterSpacing: 1, fontSize: "0.7rem", color: "rgba(255,255,255,0.5)" }}>Personal Information</Typography>
@@ -310,9 +382,9 @@ export default function Register() {
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Contact Us</Typography>
               <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}><PhoneAndroidIcon sx={{ color: "primary.main" }} /><Typography variant="body2" sx={{ color: "rgba(255,255,255,0.7)" }}>+1 (555) 123-4567</Typography></Box>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}><PhoneAndroidIcon sx={{ color: "primary.main" }} /><Typography variant="body2" sx={{ color: "rgba(255,255,255,0.7)" }}>01968776048</Typography></Box>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}><LockIcon sx={{ color: "primary.main" }} /><Typography variant="body2" sx={{ color: "rgba(255,255,255,0.7)" }}>support@bankpro.com</Typography></Box>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}><StorefrontIcon sx={{ color: "primary.main" }} /><Typography variant="body2" sx={{ color: "rgba(255,255,255,0.7)" }}>123 Banking Street</Typography></Box>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}><StorefrontIcon sx={{ color: "primary.main" }} /><Typography variant="body2" sx={{ color: "rgba(255,255,255,0.7)" }}>Eastern Galaxy,﻿109, Katasur, Sher-e-Bangla Road, Mohammadpur Dhaka-1207</Typography></Box>
               </Box>
             </Box>
           </Box>

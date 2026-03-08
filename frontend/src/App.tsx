@@ -13,6 +13,9 @@ import CustomerLayout from "./components/layout/CustomerLayout";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import ForgotPassword from "./pages/ForgotPassword";
+import VerifyCode from "./pages/VerifyCode";
+import ChangePassword from "./pages/ChangePassword";
 
 // Dashboards
 import AdminDashboard from "./pages/dashboards/AdminDashboard";
@@ -44,6 +47,9 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/verify-code" element={<VerifyCode />} />
+            <Route path="/change-password" element={<ChangePassword />} />
 
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminLayout />}>

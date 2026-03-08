@@ -1881,7 +1881,7 @@ export default function Home() {
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <PhoneAndroidIcon sx={{ color: "primary.main" }} />
                   <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.7)" }}>
-                    +1 (555) 123-4567
+                    01968776048
                   </Typography>
                 </Box>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -1893,7 +1893,7 @@ export default function Home() {
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <StorefrontIcon sx={{ color: "primary.main" }} />
                   <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.7)" }}>
-                    123 Banking Street, Finance City
+                   Eastern Galaxy,﻿109, Katasur, Sher-e-Bangla Road, Mohammadpur Dhaka-1207 
                   </Typography>
                 </Box>
               </Box>

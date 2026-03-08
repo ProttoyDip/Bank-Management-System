@@ -9,4 +9,9 @@ router.get("/:id", UserController.getById);
 router.put("/:id", UserController.update);
 router.delete("/:id", UserController.delete);
 
+// Password reset routes
+router.post("/forgot-password", UserController.forgotPassword);
+router.post("/verify-code", UserController.verifyCode);
+router.post("/change-password", UserController.changePassword);
+
 export default router;

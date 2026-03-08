@@ -13,7 +13,7 @@ dotenv.config()
 // Build connection string for msnodesqlv8 (supports named instances + Windows Auth)
 // Using hardcoded values for SQLEXPRESS instance - override .env if needed
 const server = "DESKTOP-EBM0COB";
-const port = 59110;
+const port = 1433;
 const database = "BankManagementSystem";
 
 export const AppDataSource = new DataSource({
