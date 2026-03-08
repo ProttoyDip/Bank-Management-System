@@ -29,8 +29,8 @@ const dockerConfig: DataSourceOptions = {
 // Configuration for local SQL Server Express (fallback)
 const localConfig: DataSourceOptions = {
     type: "mssql",
-    host: "DESKTOP-F5ATA0B\\SQLEXPRESS",
-    port: 1434,
+    host: "localhost",
+    port: 1433,
     database: database,
     username: "sa",
     password: "12345678",

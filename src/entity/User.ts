@@ -25,11 +25,14 @@ export class User {
     @Column({ type: "nvarchar", length: 255, nullable: true })
     address!: string;
 
+    @Column({ type: "nvarchar", length: 20, default: "Customer" })
+    role!: string;
+
     @Column({ type: "nvarchar", length: 255, nullable: true })
     password!: string;
 
     @Column({ type: "nvarchar", length: 10, nullable: true })
-    verificationCode!: string;
+    verificationCode!: string | null;
 
     @Column({ type: "datetime", nullable: true })
     verificationExpiry!: Date | null;
