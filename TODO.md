@@ -1,16 +1,12 @@
-# TODO - Add Role to Register Page
+# TODO: Fix Deposit/Withdraw Navigation Issue
 
-## Task: Add role selection to Register page like Login page
+## Task
+After clicking the deposit and withdraw buttons in the customer dashboard, they should redirect to the transfer money page instead of the home page.
 
-### Steps:
-- [x] 1. Analyze Login.tsx to understand role implementation
-- [x] 2. Analyze Register.tsx to understand current structure
-- [x] 3. Check UserRole types
-- [x] 4. Create plan and get user confirmation
-- [x] 5. Implement role selection in Register.tsx
-  - [x] Add imports (AccountCircleIcon, LockIcon, UserRole)
-  - [x] Add roles array
-  - [x] Add selectedRole state
-  - [x] Add role selection UI
-  - [x] Update handleSubmit to include role
+## Steps:
+- [x] 1. Analyze the issue in CustomerDashboard.tsx
+- [x] 2. Analyze the routing in App.tsx
+- [x] 3. Add route for /customer/transfer in App.tsx
+- [x] 4. Modify Transfer.tsx to fetch only customer's accounts
+- [x] 5. Test the changes (build verification)
 

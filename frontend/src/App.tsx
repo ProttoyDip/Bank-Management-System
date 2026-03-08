@@ -81,6 +81,7 @@ export default function App() {
               <Route path="dashboard" element={<CustomerDashboard />} />
               <Route path="accounts" element={<CustomerAccounts />} />
               <Route path="transactions" element={<TransactionHistory />} />
+              <Route path="transfer" element={<Transfer />} />
               <Route path="loans" element={<LoanList />} />
               <Route path="settings" element={<Settings />} />
               <Route index element={<Navigate to="dashboard" replace />} />
