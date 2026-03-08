@@ -72,7 +72,7 @@ export class Loan {
     @JoinColumn({ name: "userId" })
     user!: User;
 
-    @ManyToOne(() => Account, { onDelete: "CASCADE" })
+    @ManyToOne(() => Account, { onDelete: "NO ACTION" })
     @JoinColumn({ name: "accountId" })
     account!: Account;
 

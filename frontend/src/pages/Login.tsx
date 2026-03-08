@@ -588,6 +588,7 @@ export default function Login() {
           justifyContent: "center",
           px: 2,
           py: { xs: 12, md: 0 },
+          pt: { xs: 14, sm: 11, md: 8 },
         }}
       >
         <motion.div
@@ -869,7 +870,7 @@ export default function Login() {
                 </label>
                 <Link
                   component={RouterLink}
-                  to="#"
+                  to="/forgot-password"
                   sx={{
                     fontSize: "0.85rem",
                     color: "#06b6d4",
@@ -1141,7 +1142,7 @@ export default function Login() {
                     variant="body2"
                     sx={{ color: "rgba(255,255,255,0.7)" }}
                   >
-                    +1 (555) 123-4567
+                    01968776048
                   </Typography>
                 </Box>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -1159,7 +1160,7 @@ export default function Login() {
                     variant="body2"
                     sx={{ color: "rgba(255,255,255,0.7)" }}
                   >
-                    123 Banking Street, Finance City
+                    Eastern Galaxy,﻿109, Katasur, Sher-e-Bangla Road, Mohammadpur Dhaka-1207
                   </Typography>
                 </Box>
               </Box>

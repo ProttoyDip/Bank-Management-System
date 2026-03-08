@@ -28,6 +28,12 @@ export class User {
     @Column({ type: "nvarchar", length: 255, nullable: true })
     password!: string;
 
+    @Column({ type: "nvarchar", length: 10, nullable: true })
+    verificationCode!: string;
+
+    @Column({ type: "datetime", nullable: true })
+    verificationExpiry!: Date | null;
+
     @OneToMany(() => Account, (account) => account.user, { cascade: true })
     accounts!: Account[];
 
