@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { AppDataSource } from "../data-source";
+import { getDataSource } from "../data-source";
 import { User } from "../entity/User";
 
 // Helper function to generate verification code
@@ -18,7 +18,7 @@ export class UserController {
     // POST /api/users — Create a new user
     static async create(req: Request, res: Response): Promise<void> {
         try {
-            const userRepository = AppDataSource.getRepository(User);
+            const userRepository = getDataSource().getRepository(User);
             const { name, email, phone, address, password } = req.body;
 
             // Validate required fields
@@ -61,7 +61,7 @@ export class UserController {
     // GET /api/users — Get all users (with their accounts)
     static async getAll(req: Request, res: Response): Promise<void> {
         try {
-            const userRepository = AppDataSource.getRepository(User);
+            const userRepository = getDataSource().getRepository(User);
             const users = await userRepository.find({ relations: ["accounts"] });
             res.json({ data: users });
         } catch (error) {
@@ -73,7 +73,7 @@ export class UserController {
     // GET /api/users/:id — Get a single user by ID
     static async getById(req: Request, res: Response): Promise<void> {
         try {
-            const userRepository = AppDataSource.getRepository(User);
+            const userRepository = getDataSource().getRepository(User);
             const id = parseInt(req.params.id as string);
             const user = await userRepository.findOne({
                 where: { id },
@@ -95,7 +95,7 @@ export class UserController {
     // PUT /api/users/:id — Update a user
     static async update(req: Request, res: Response): Promise<void> {
         try {
-            const userRepository = AppDataSource.getRepository(User);
+            const userRepository = getDataSource().getRepository(User);
             const id = parseInt(req.params.id as string);
             const user = await userRepository.findOneBy({ id });
 
@@ -120,7 +120,7 @@ export class UserController {
     // DELETE /api/users/:id — Delete a user
     static async delete(req: Request, res: Response): Promise<void> {
         try {
-            const userRepository = AppDataSource.getRepository(User);
+            const userRepository = getDataSource().getRepository(User);
             const id = parseInt(req.params.id as string);
             const result = await userRepository.delete(id);
 
@@ -139,7 +139,7 @@ export class UserController {
     // POST /api/users/forgot-password — Send verification code
     static async forgotPassword(req: Request, res: Response): Promise<void> {
         try {
-            const userRepository = AppDataSource.getRepository(User);
+            const userRepository = getDataSource().getRepository(User);
             const { email, role } = req.body;
 
             // Validate required fields
@@ -184,7 +184,7 @@ export class UserController {
     // POST /api/users/verify-code — Verify the code
     static async verifyCode(req: Request, res: Response): Promise<void> {
         try {
-            const userRepository = AppDataSource.getRepository(User);
+            const userRepository = getDataSource().getRepository(User);
             const { email, code } = req.body;
 
             // Validate required fields
@@ -225,7 +225,7 @@ export class UserController {
     // POST /api/users/change-password — Change password after verification
     static async changePassword(req: Request, res: Response): Promise<void> {
         try {
-            const userRepository = AppDataSource.getRepository(User);
+            const userRepository = getDataSource().getRepository(User);
             const { email, code, newPassword } = req.body;
 
             // Validate required fields
@@ -272,3 +272,4 @@ export class UserController {
         }
     }
 }
+

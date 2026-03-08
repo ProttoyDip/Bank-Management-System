@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { AppDataSource } from "../data-source";
+import { getDataSource } from "../data-source";
 import { Account, AccountType } from "../entity/Account";
 import { User } from "../entity/User";
 
@@ -12,8 +12,8 @@ export class AccountController {
     // POST /api/accounts — Create a new account for a user
     static async create(req: Request, res: Response): Promise<void> {
         try {
-            const accountRepository = AppDataSource.getRepository(Account);
-            const userRepository = AppDataSource.getRepository(User);
+            const accountRepository = getDataSource().getRepository(Account);
+            const userRepository = getDataSource().getRepository(User);
             const { userId, type } = req.body;
 
             if (!userId) {
@@ -59,7 +59,7 @@ export class AccountController {
     // GET /api/accounts — Get all accounts
     static async getAll(req: Request, res: Response): Promise<void> {
         try {
-            const accountRepository = AppDataSource.getRepository(Account);
+            const accountRepository = getDataSource().getRepository(Account);
             const accounts = await accountRepository.find({ relations: ["user"] });
             res.json({ data: accounts });
         } catch (error) {
@@ -71,7 +71,7 @@ export class AccountController {
     // GET /api/accounts/:id — Get account by ID
     static async getById(req: Request, res: Response): Promise<void> {
         try {
-            const accountRepository = AppDataSource.getRepository(Account);
+            const accountRepository = getDataSource().getRepository(Account);
             const id = parseInt(req.params.id as string);
             const account = await accountRepository.findOne({
                 where: { id },
@@ -93,7 +93,7 @@ export class AccountController {
     // POST /api/accounts/:id/deposit — Deposit money
     static async deposit(req: Request, res: Response): Promise<void> {
         try {
-            const accountRepository = AppDataSource.getRepository(Account);
+            const accountRepository = getDataSource().getRepository(Account);
             const id = parseInt(req.params.id as string);
             const { amount } = req.body;
 
@@ -124,7 +124,7 @@ export class AccountController {
     // POST /api/accounts/:id/withdraw — Withdraw money
     static async withdraw(req: Request, res: Response): Promise<void> {
         try {
-            const accountRepository = AppDataSource.getRepository(Account);
+            const accountRepository = getDataSource().getRepository(Account);
             const id = parseInt(req.params.id as string);
             const { amount } = req.body;
 
@@ -157,3 +157,4 @@ export class AccountController {
         }
     }
 }
+
