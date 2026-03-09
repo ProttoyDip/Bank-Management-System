@@ -228,16 +228,19 @@ export class UserController {
             }
 
             email = email.toLowerCase();
+            console.log("🔍 Forgot password request for email:", email);
 
             const user = await userRepository.findOneBy({ email });
 
             if (!user) {
+                console.log("⚠️ User not found for email:", email);
                 res.json({
                     message: "If this email exists, a verification code will be sent"
                 });
                 return;
             }
 
+            console.log("✅ User found:", user.name, "- Generating verification code...");
             const code = generateVerificationCode();
 
             const expiry = new Date();
@@ -248,10 +251,12 @@ export class UserController {
 
             await userRepository.save(user);
 
-            try {
-                await sendVerificationEmail(email, code, user.name);
-            } catch (err) {
-                console.error("Email sending failed:", err);
+            const emailSent = await sendVerificationEmail(email, code, user.name);
+
+            if (!emailSent) {
+                console.error("Email sending failed for:", email);
+                res.status(500).json({ error: "Failed to send verification email. Please try again later." });
+                return;
             }
 
             res.json({
