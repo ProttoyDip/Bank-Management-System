@@ -30,7 +30,7 @@ const dockerConfig: DataSourceOptions = {
 const localConfig: DataSourceOptions = {
     type: "mssql",
     host: "localhost",
-    port: 1433,
+    port: 52171,
     database: database,
     username: "sa",
     password: "12345678",
