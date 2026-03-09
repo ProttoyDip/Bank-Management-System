@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import { getDataSource } from "../data-source";
 import { Account, AccountType } from "../entity/Account";
 import { User } from "../entity/User";
+import { Transaction, TransactionType } from "../entity/Transaction";
+import { generateReferenceNumber } from "../utils/helpers";
 
 // Generate a unique 10-digit account number
 function generateAccountNumber(): string {
@@ -94,6 +96,7 @@ export class AccountController {
     static async deposit(req: Request, res: Response): Promise<void> {
         try {
             const accountRepository = getDataSource().getRepository(Account);
+            const transactionRepository = getDataSource().getRepository(Transaction);
             const id = parseInt(req.params.id as string);
             const { amount } = req.body;
 
@@ -111,6 +114,17 @@ export class AccountController {
             account.balance = Number(account.balance) + Number(amount);
             const updatedAccount = await accountRepository.save(account);
 
+            // Create transaction record
+            const transaction = transactionRepository.create({
+                accountId: id,
+                type: TransactionType.DEPOSIT,
+                amount: Number(amount),
+                balanceAfter: Number(updatedAccount.balance),
+                description: `Deposit to account ${updatedAccount.accountNumber}`,
+                referenceNumber: generateReferenceNumber(),
+            });
+            await transactionRepository.save(transaction);
+
             res.json({
                 message: `Successfully deposited ${amount}`,
                 data: updatedAccount,
@@ -125,6 +139,7 @@ export class AccountController {
     static async withdraw(req: Request, res: Response): Promise<void> {
         try {
             const accountRepository = getDataSource().getRepository(Account);
+            const transactionRepository = getDataSource().getRepository(Transaction);
             const id = parseInt(req.params.id as string);
             const { amount } = req.body;
 
@@ -146,6 +161,17 @@ export class AccountController {
 
             account.balance = Number(account.balance) - Number(amount);
             const updatedAccount = await accountRepository.save(account);
+
+            // Create transaction record
+            const transaction = transactionRepository.create({
+                accountId: id,
+                type: TransactionType.WITHDRAW,
+                amount: Number(amount),
+                balanceAfter: Number(updatedAccount.balance),
+                description: `Withdrawal from account ${updatedAccount.accountNumber}`,
+                referenceNumber: generateReferenceNumber(),
+            });
+            await transactionRepository.save(transaction);
 
             res.json({
                 message: `Successfully withdrew ${amount}`,
