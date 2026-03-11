@@ -33,57 +33,39 @@ import {
 import { motion } from "framer-motion";
 import api from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
-import { Transaction, TransactionType, UserRole, Account, ApiResponse } from "../../types";
+import { Transaction, TransactionType, ApiResponse, UserRole } from "../../types";
 
 export default function TransactionHistory() {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
 
-  // Fetch transactions based on user role
   useEffect(() => {
     const fetchTransactions = async () => {
       try {
         setLoading(true);
-        setError(null);
-
-        if (!user) {
-          setError("User not authenticated");
-          setLoading(false);
-          return;
-        }
-
-        let fetchedTransactions: Transaction[] = [];
-
-        if (user.role === UserRole.CUSTOMER) {
-          // For customers, first get their accounts, then fetch transactions for each account
-          const userResponse = await api.get<ApiResponse<any>>(`/users/${user.id}`);
-          const accounts: Account[] = userResponse.data.data.accounts || [];
-
-          if (accounts.length > 0) {
-            // Fetch transactions for all accounts in parallel
-            const transactionPromises = accounts.map((account) =>
-              api.get<ApiResponse<Transaction[]>>(`/transactions/account/${account.id}`)
-            );
-            const responses = await Promise.all(transactionPromises);
-            // Flatten all transactions from all accounts
-            fetchedTransactions = responses.flatMap((res) => res.data.data);
-          }
+        setError("");
+        
+        let response;
+        
+        if (user?.role === UserRole.CUSTOMER && user.accounts && user.accounts.length > 0) {
+          // For customers, get transactions for their first account
+          const accountId = user.accounts[0].id;
+          response = await api.get<ApiResponse<Transaction[]>>(`/transactions/account/${accountId}`);
         } else {
-          // For admin/employee, fetch all transactions
-          const response = await api.get<ApiResponse<Transaction[]>>("/transactions");
-          fetchedTransactions = response.data.data;
+          // For admin/employee, get all transactions
+          response = await api.get<ApiResponse<Transaction[]>>("/transactions");
         }
-
+        
         // Sort by date descending (newest first)
-        fetchedTransactions.sort(
-          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        const sortedTransactions = (response.data.data || []).sort(
+          (a: Transaction, b: Transaction) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
-
-        setTransactions(fetchedTransactions);
+        
+        setTransactions(sortedTransactions);
       } catch (err: any) {
         console.error("Error fetching transactions:", err);
         setError(err.response?.data?.error || "Failed to load transactions");
@@ -95,32 +77,31 @@ export default function TransactionHistory() {
     fetchTransactions();
   }, [user]);
 
-  // Compute chart data from transactions (group by week)
+  // Compute chart data from transactions (grouped by week)
   const chartData = useMemo(() => {
     if (transactions.length === 0) return [];
 
-    // Group transactions by week
+    const now = new Date();
+    const fourWeeksAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+    
     const weeklyData: { [key: string]: { deposits: number; withdrawals: number } } = {};
+    
+    // Initialize 4 weeks
+    for (let i = 0; i < 4; i++) {
+      weeklyData[`Week ${i + 1}`] = { deposits: 0, withdrawals: 0 };
+    }
 
     transactions.forEach((txn) => {
-      const date = new Date(txn.createdAt);
-      const startOfYear = new Date(date.getFullYear(), 0, 1);
-      const days = Math.floor((date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
-      const weekNumber = Math.ceil((days + startOfYear.getDay() + 1) / 7);
-      const weekKey = `Week ${weekNumber}`;
+      const txnDate = new Date(txn.createdAt);
+      if (txnDate < fourWeeksAgo) return;
 
-      if (!weeklyData[weekKey]) {
-        weeklyData[weekKey] = { deposits: 0, withdrawals: 0 };
-      }
+      const daysDiff = Math.floor((now.getTime() - txnDate.getTime()) / (24 * 60 * 60 * 1000));
+      const weekIndex = Math.min(3, Math.floor((27 - daysDiff) / 7));
+      const weekKey = `Week ${weekIndex + 1}`;
 
-      const isDeposit =
-        txn.type === TransactionType.DEPOSIT ||
-        txn.type === TransactionType.TRANSFER_IN ||
-        txn.type === TransactionType.LOAN_DISBURSEMENT;
-
-      if (isDeposit) {
+      if (txn.type === TransactionType.DEPOSIT || txn.type === TransactionType.TRANSFER_IN) {
         weeklyData[weekKey].deposits += txn.amount;
-      } else {
+      } else if (txn.type === TransactionType.WITHDRAW || txn.type === TransactionType.TRANSFER_OUT) {
         weeklyData[weekKey].withdrawals += Math.abs(txn.amount);
       }
     });
@@ -132,23 +113,15 @@ export default function TransactionHistory() {
     }));
   }, [transactions]);
 
-  // Compute summary statistics
+  // Compute summary stats from transactions
   const summaryStats = useMemo(() => {
-    let totalDeposits = 0;
-    let totalWithdrawals = 0;
-
-    transactions.forEach((txn) => {
-      const isDeposit =
-        txn.type === TransactionType.DEPOSIT ||
-        txn.type === TransactionType.TRANSFER_IN ||
-        txn.type === TransactionType.LOAN_DISBURSEMENT;
-
-      if (isDeposit) {
-        totalDeposits += txn.amount;
-      } else {
-        totalWithdrawals += Math.abs(txn.amount);
-      }
-    });
+    const totalDeposits = transactions
+      .filter(t => t.type === TransactionType.DEPOSIT || t.type === TransactionType.TRANSFER_IN)
+      .reduce((sum, t) => sum + t.amount, 0);
+    
+    const totalWithdrawals = transactions
+      .filter(t => t.type === TransactionType.WITHDRAW || t.type === TransactionType.TRANSFER_OUT)
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
     return {
       totalDeposits,
@@ -162,40 +135,39 @@ export default function TransactionHistory() {
     switch (type) {
       case TransactionType.DEPOSIT:
       case TransactionType.TRANSFER_IN:
-      case TransactionType.LOAN_DISBURSEMENT:
         return "success";
       case TransactionType.WITHDRAW:
       case TransactionType.TRANSFER_OUT:
-      case TransactionType.LOAN_PAYMENT:
         return "error";
       default:
         return "default";
     }
   };
 
-  const formatType = (type: string): string => {
-    // Convert enum format to readable format
+  const formatType = (type: string) => {
     return type.replace(/_/g, " ");
   };
 
   const filteredTransactions = transactions.filter((t) => {
-    const matchesSearch =
-      t.description.toLowerCase().includes(search.toLowerCase()) ||
-      t.referenceNumber.toLowerCase().includes(search.toLowerCase());
-    const matchesType =
-      typeFilter === "all" || typeFilter === "deposit"
-        ? [TransactionType.DEPOSIT, TransactionType.TRANSFER_IN, TransactionType.LOAN_DISBURSEMENT].includes(t.type as TransactionType)
-        : typeFilter === "withdraw"
-        ? [TransactionType.WITHDRAW, TransactionType.TRANSFER_OUT, TransactionType.LOAN_PAYMENT].includes(t.type as TransactionType)
-        : typeFilter === "transfer"
-        ? [TransactionType.TRANSFER_IN, TransactionType.TRANSFER_OUT].includes(t.type as TransactionType)
-        : true;
+    const matchesSearch = 
+      t.description?.toLowerCase().includes(search.toLowerCase()) ||
+      t.referenceNumber?.toLowerCase().includes(search.toLowerCase());
+    const matchesType = typeFilter === "all" || 
+      t.type.toLowerCase().includes(typeFilter.toLowerCase());
     return matchesSearch && matchesType;
   });
 
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
+
   if (loading) {
     return (
-      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "400px" }}>
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 400 }}>
         <CircularProgress />
       </Box>
     );
@@ -204,9 +176,7 @@ export default function TransactionHistory() {
   if (error) {
     return (
       <Box sx={{ maxWidth: 1600, mx: "auto", p: 3 }}>
-        <Typography color="error" variant="h6">
-          {error}
-        </Typography>
+        <Typography color="error" variant="h6">{error}</Typography>
       </Box>
     );
   }
@@ -273,22 +243,16 @@ export default function TransactionHistory() {
             <CardContent sx={{ p: 3 }}>
               <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>Weekly Overview</Typography>
               <Box sx={{ height: 280 }}>
-                {chartData.length > 0 ? (
-                  <ResponsiveContainer>
-                    <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="month" />
-                      <YAxis tickFormatter={(v) => `৳${v / 1000}k`} />
-                      <Tooltip formatter={(value) => [`৳${Number(value).toLocaleString()}`, ""]} />
-                      <Bar dataKey="deposits" fill="#22c55e" name="Deposits" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="withdrawals" fill="#ef4444" name="Withdrawals" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
-                    <Typography color="text.secondary">No transaction data available</Typography>
-                  </Box>
-                )}
+                <ResponsiveContainer>
+                  <BarChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis tickFormatter={(v) => `৳${v / 1000}k`} />
+                    <Tooltip formatter={(value) => [`৳${Number(value).toLocaleString()}`, ""]} />
+                    <Bar dataKey="deposits" fill="#22c55e" name="Deposits" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="withdrawals" fill="#ef4444" name="Withdrawals" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
               </Box>
             </CardContent>
           </Card>
@@ -318,7 +282,7 @@ export default function TransactionHistory() {
                 </Box>
                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <Typography variant="body2" color="text.secondary">Net Flow</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600, color: summaryStats.netFlow >= 0 ? "primary.main" : "error.main" }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: "primary.main" }}>
                     ৳{summaryStats.netFlow.toLocaleString()}
                   </Typography>
                 </Box>
@@ -351,43 +315,36 @@ export default function TransactionHistory() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredTransactions.map((transaction) => {
-                  const isPositive =
-                    transaction.type === TransactionType.DEPOSIT ||
-                    transaction.type === TransactionType.TRANSFER_IN ||
-                    transaction.type === TransactionType.LOAN_DISBURSEMENT;
-
-                  return (
-                    <TableRow key={transaction.id} hover>
-                      <TableCell>{new Date(transaction.createdAt).toLocaleDateString()}</TableCell>
-                      <TableCell sx={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
-                        {transaction.referenceNumber}
-                      </TableCell>
-                      <TableCell>{transaction.description}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={formatType(transaction.type)}
-                          size="small"
-                          color={getTypeColor(transaction.type) as any}
-                          variant="outlined"
-                          sx={{ fontWeight: 500 }}
-                        />
-                      </TableCell>
-                      <TableCell
-                        align="right"
-                        sx={{
-                          fontWeight: 600,
-                          color: isPositive ? "success.main" : "error.main",
-                        }}
-                      >
-                        {isPositive ? "+" : "-"}৳{Math.abs(transaction.amount).toLocaleString()}
-                      </TableCell>
-                      <TableCell align="right" sx={{ fontFamily: "monospace", fontWeight: 500 }}>
-                        ৳{transaction.balanceAfter.toLocaleString()}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                {filteredTransactions.map((transaction) => (
+                  <TableRow key={transaction.id} hover>
+                    <TableCell>{formatDate(transaction.createdAt)}</TableCell>
+                    <TableCell sx={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
+                      {transaction.referenceNumber}
+                    </TableCell>
+                    <TableCell>{transaction.description}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={formatType(transaction.type)}
+                        size="small"
+                        color={getTypeColor(transaction.type) as any}
+                        variant="outlined"
+                        sx={{ fontWeight: 500 }}
+                      />
+                    </TableCell>
+                    <TableCell
+                      align="right"
+                      sx={{
+                        fontWeight: 600,
+                        color: transaction.amount > 0 ? "success.main" : "error.main",
+                      }}
+                    >
+                      {transaction.amount > 0 ? "+" : ""}৳{Math.abs(transaction.amount).toLocaleString()}
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontFamily: "monospace", fontWeight: 500 }}>
+                      ৳{transaction.balanceAfter.toLocaleString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
                 {filteredTransactions.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
