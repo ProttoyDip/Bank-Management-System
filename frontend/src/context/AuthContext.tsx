@@ -1,11 +1,12 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { UserRole } from "../types";
+import { UserRole, Account } from "../types";
 
 interface User {
   id: number;
   name: string;
   email: string;
   role: UserRole;
+  accounts?: Account[];
 }
 
 interface AuthContextType {

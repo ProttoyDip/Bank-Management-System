@@ -59,11 +59,11 @@ export interface Loan {
 }
 
 export enum LoanType {
-  PERSONAL = "Personal Loan",
-  HOME = "Home Loan",
-  CAR = "Car Loan",
-  EDUCATION = "Education Loan",
-  BUSINESS = "Business Loan",
+  PERSONAL = "Personal",
+  HOME = "Home",
+  CAR = "Car",
+  EDUCATION = "Education",
+  BUSINESS = "Business",
 }
 
 export enum LoanStatus {

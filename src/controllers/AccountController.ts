@@ -92,6 +92,57 @@ export class AccountController {
         }
     }
 
+    // GET /api/accounts/by-account-number/:accountNumber — Get account by account number
+    static async getByAccountNumber(req: Request, res: Response): Promise<void> {
+        try {
+            const accountRepository = getDataSource().getRepository(Account);
+            const accountNumber = req.params.accountNumber as string;
+
+            if (!accountNumber) {
+                res.status(400).json({ error: "Account number is required" });
+                return;
+            }
+
+            const account = await accountRepository.findOne({
+                where: { accountNumber },
+                relations: ["user"],
+            });
+
+            if (!account) {
+                res.status(404).json({ error: "Account not found" });
+                return;
+            }
+
+            res.json({ data: account });
+        } catch (error) {
+            console.error("Error fetching account by account number:", error);
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
+    // GET /api/accounts/user/:userId — Get accounts by user ID
+    static async getByUserId(req: Request, res: Response): Promise<void> {
+        try {
+            const accountRepository = getDataSource().getRepository(Account);
+            const userId = parseInt(req.params.userId as string);
+
+            if (isNaN(userId)) {
+                res.status(400).json({ error: "Invalid user ID" });
+                return;
+            }
+
+            const accounts = await accountRepository.find({
+                where: { userId },
+                relations: ["user"],
+            });
+
+            res.json({ data: accounts });
+        } catch (error) {
+            console.error("Error fetching accounts by user:", error);
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
     // POST /api/accounts/:id/deposit — Deposit money
     static async deposit(req: Request, res: Response): Promise<void> {
         try {
@@ -180,6 +231,102 @@ export class AccountController {
         } catch (error) {
             console.error("Error withdrawing:", error);
             res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
+    // POST /api/accounts/transfer — Transfer money between accounts
+    static async transfer(req: Request, res: Response): Promise<void> {
+        const queryRunner = getDataSource().createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+
+        try {
+            const accountRepository = queryRunner.manager.getRepository(Account);
+            const transactionRepository = queryRunner.manager.getRepository(Transaction);
+            const { fromAccountId, toAccountId, amount } = req.body;
+
+            // Validate required fields
+            if (!fromAccountId || !toAccountId || !amount) {
+                res.status(400).json({ error: "fromAccountId, toAccountId, and amount are required" });
+                return;
+            }
+
+            if (Number(amount) <= 0) {
+                res.status(400).json({ error: "Amount must be positive" });
+                return;
+            }
+
+            if (Number(fromAccountId) === Number(toAccountId)) {
+                res.status(400).json({ error: "Cannot transfer to the same account" });
+                return;
+            }
+
+            // Get source account
+            const fromAccount = await accountRepository.findOneBy({ id: Number(fromAccountId) });
+            if (!fromAccount) {
+                res.status(404).json({ error: "Source account not found" });
+                return;
+            }
+
+            // Get destination account
+            const toAccount = await accountRepository.findOneBy({ id: Number(toAccountId) });
+            if (!toAccount) {
+                res.status(404).json({ error: "Destination account not found" });
+                return;
+            }
+
+            // Check sufficient balance
+            if (Number(fromAccount.balance) < Number(amount)) {
+                res.status(400).json({ error: "Insufficient balance" });
+                return;
+            }
+
+            // Debit source account
+            fromAccount.balance = Number(fromAccount.balance) - Number(amount);
+            await accountRepository.save(fromAccount);
+
+            // Credit destination account
+            toAccount.balance = Number(toAccount.balance) + Number(amount);
+            await accountRepository.save(toAccount);
+
+            // Create TRANSFER_OUT transaction for source account
+            const transferOutTransaction = transactionRepository.create({
+                accountId: Number(fromAccountId),
+                type: TransactionType.TRANSFER_OUT,
+                amount: Number(amount),
+                balanceAfter: Number(fromAccount.balance),
+                description: `Transfer to account ${toAccount.accountNumber}`,
+                referenceNumber: generateReferenceNumber(),
+            });
+            await transactionRepository.save(transferOutTransaction);
+
+            // Create TRANSFER_IN transaction for destination account
+            const transferInTransaction = transactionRepository.create({
+                accountId: Number(toAccountId),
+                type: TransactionType.TRANSFER_IN,
+                amount: Number(amount),
+                balanceAfter: Number(toAccount.balance),
+                description: `Transfer from account ${fromAccount.accountNumber}`,
+                referenceNumber: generateReferenceNumber(),
+            });
+            await transactionRepository.save(transferInTransaction);
+
+            await queryRunner.commitTransaction();
+
+            res.json({
+                message: `Successfully transferred ${amount} to account ${toAccount.accountNumber}`,
+                data: {
+                    fromAccount: fromAccount,
+                    toAccount: toAccount,
+                    transferredAmount: Number(amount),
+                },
+            });
+        } catch (error) {
+            await queryRunner.rollbackTransaction();
+            console.error("Error transferring:", error);
+            res.status(500).json({ error: "Internal server error" });
+        } finally {
+            await queryRunner.release();
         }
     }
 }

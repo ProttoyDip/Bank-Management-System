@@ -21,10 +21,12 @@ import {
   Alert,
   Snackbar,
   Grid,
+  CircularProgress,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import api from "../../services/api";
-import { Loan, LoanType, LoanStatus, User, Account, ApiResponse, CreateLoanPayload } from "../../types";
+import { useAuth } from "../../context/AuthContext";
+import { Loan, LoanType, LoanStatus, User, Account, ApiResponse, CreateLoanPayload, UserRole } from "../../types";
 import { motion } from "framer-motion";
 import {
   BarChart,
@@ -47,6 +49,7 @@ interface ChartEntry {
 }
 
 export default function LoanList() {
+  const { user } = useAuth();
   const [loans, setLoans] = useState<Loan[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -65,8 +68,17 @@ export default function LoanList() {
 
   const fetchLoans = async () => {
     try {
-      const res = await api.get<ApiResponse<Loan[]>>("/loans");
-      const data = res.data.data;
+      let response;
+      
+      if (user?.role === UserRole.CUSTOMER) {
+        // For customers, get loans for their user ID
+        response = await api.get<ApiResponse<Loan[]>>(`/loans/user/${user.id}`);
+      } else {
+        // For admin/employee, get all loans
+        response = await api.get<ApiResponse<Loan[]>>("/loans");
+      }
+      
+      const data = response.data.data;
       setLoans(data);
 
       // Aggregate by month for chart
@@ -92,18 +104,29 @@ export default function LoanList() {
     const fetchAll = async () => {
       await fetchLoans();
       try {
-        const [usersRes, accountsRes] = await Promise.all([
-          api.get<ApiResponse<User[]>>("/users"),
-          api.get<ApiResponse<Account[]>>("/accounts"),
-        ]);
-        setUsers(usersRes.data.data);
-        setAccounts(accountsRes.data.data);
+        // For customers, only fetch their own data
+        if (user?.role === UserRole.CUSTOMER) {
+          // Set the form userId to current user
+          setForm(prev => ({ ...prev, userId: user.id }));
+          
+          // Fetch only the current user's accounts
+          const accountsRes = await api.get<ApiResponse<Account[]>>(`/accounts/user/${user.id}`);
+          setAccounts(accountsRes.data.data);
+        } else {
+          // For admin/employee, fetch all users and accounts
+          const [usersRes, accountsRes] = await Promise.all([
+            api.get<ApiResponse<User[]>>("/users"),
+            api.get<ApiResponse<Account[]>>("/accounts"),
+          ]);
+          setUsers(usersRes.data.data);
+          setAccounts(accountsRes.data.data);
+        }
       } catch {
         // Non-critical: dialog will show empty dropdowns
       }
     };
     fetchAll();
-  }, []);
+  }, [user]);
 
   const filteredAccounts = accounts.filter((a) => a.userId === form.userId);
 
@@ -138,7 +161,9 @@ export default function LoanList() {
       });
       setSnack({ open: true, message: "Loan application submitted successfully", severity: "success" });
       setDialogOpen(false);
-      setForm({ userId: 0, accountId: 0, type: LoanType.PERSONAL, amount: "", interestRate: "10", duration: "12" });
+      // Reset form - for customers, keep their userId
+      const resetUserId = user?.role === UserRole.CUSTOMER ? user.id : 0;
+      setForm({ userId: resetUserId, accountId: 0, type: LoanType.PERSONAL, amount: "", interestRate: "10", duration: "12" });
       fetchLoans();
     } catch (err: any) {
       const msg = err.response?.data?.error || "Failed to submit loan application";
@@ -148,6 +173,14 @@ export default function LoanList() {
 
   const totalDisbursed = loans.reduce((sum, l) => sum + Number(l.amount), 0);
   const totalOutstanding = loans.reduce((sum, l) => sum + Number(l.remainingBalance), 0);
+
+  if (loading) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 400 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ maxWidth: 1600, mx: "auto" }}>
@@ -317,17 +350,20 @@ export default function LoanList() {
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontWeight: 600 }}>Apply for New Loan</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: "16px !important" }}>
-          <TextField
-            select
-            label="Select Customer"
-            fullWidth
-            value={form.userId || ""}
-            onChange={(e) => setForm({ ...form, userId: Number(e.target.value), accountId: 0 })}
-          >
-            {users.map((u) => (
-              <MenuItem key={u.id} value={u.id}>{u.name} ({u.email})</MenuItem>
-            ))}
-          </TextField>
+          {/* Only show customer selection for admin/employee, not for customers */}
+          {user?.role !== UserRole.CUSTOMER && (
+            <TextField
+              select
+              label="Select Customer"
+              fullWidth
+              value={form.userId || ""}
+              onChange={(e) => setForm({ ...form, userId: Number(e.target.value), accountId: 0 })}
+            >
+              {users.map((u) => (
+                <MenuItem key={u.id} value={u.id}>{u.name} ({u.email})</MenuItem>
+              ))}
+            </TextField>
+          )}
           <TextField
             select
             label="Select Account"

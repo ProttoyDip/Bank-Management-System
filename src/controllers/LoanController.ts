@@ -83,6 +83,29 @@ export class LoanController {
         }
     }
 
+    // GET /api/loans/user/:userId — Get loans by user ID
+    static async getByUserId(req: Request, res: Response): Promise<void> {
+        try {
+            const loanRepository = getDataSource().getRepository(Loan);
+            const userId = parseInt(req.params.userId as string);
+
+            if (isNaN(userId)) {
+                res.status(400).json({ error: "Invalid user ID" });
+                return;
+            }
+
+            const loans = await loanRepository.find({
+                where: { userId },
+                relations: ["user", "account"],
+            });
+
+            res.json({ data: loans });
+        } catch (error) {
+            console.error("Error fetching loans by user:", error);
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
     // GET /api/loans/:id — Get loan by ID
     static async getById(req: Request, res: Response): Promise<void> {
         try {
