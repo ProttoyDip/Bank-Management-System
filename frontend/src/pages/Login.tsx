@@ -120,15 +120,21 @@ export default function Login() {
       const response = await authService.login({ email, password });
       
       // Use the JWT token and user data from the response
+      // Convert the role string from server to UserRole enum
+      const serverRole = response.user.role?.toLowerCase() || "customer";
+      const userRole = serverRole === "admin" ? UserRole.ADMIN : 
+                       serverRole === "employee" ? UserRole.EMPLOYEE : 
+                       UserRole.CUSTOMER;
+      
       const userData = {
         id: response.user.id,
         name: response.user.name,
         email: response.user.email,
-        role: getRoleFromId(selectedRole),
+        role: userRole,
       };
       
       login(userData, response.token);
-      navigate(getRedirectPath(selectedRole));
+      navigate(getRedirectPath(serverRole));
     } catch (err: any) {
       console.error("Login error:", err);
       setError(err.response?.data?.error || "Invalid credentials. Please try again.");

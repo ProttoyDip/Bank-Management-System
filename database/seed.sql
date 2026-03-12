@@ -8,16 +8,17 @@ GO
 
 -- ─── Users ───────────────────────────────────────────────────
 -- Password for all users: password123
+-- Hash: $2b$10$JBfORQVNT1QpouBa6Dqwbee5GeoBuXD53SLPaYSxcKyw4xzZLCdva
 
 SET IDENTITY_INSERT users ON;
 
 INSERT INTO users (id, name, email, phone, address, password, role, createdAt, updatedAt)
 VALUES
-    (1, N'Rahim Uddin',    N'rahim@example.com',    N'+8801711000001', N'123 Mirpur Road, Dhaka',           N'$2b$10$3lfPFiaHGTEpDNP5URbLwuUV4c7hgVWQWRtODsBtCc9ZFAqodWXX6', N'Admin', GETDATE(), GETDATE()),
-    (2, N'Fatema Akhter',  N'fatema@example.com',  N'+8801812000002', N'45 Agrabad, Chittagong',           N'$2b$10$3lfPFiaHGTEpDNP5URbLwuUV4c7hgVWQWRtODsBtCc9ZFAqodWXX6', N'Employee', GETDATE(), GETDATE()),
-    (3, N'Kamal Hossain',   N'kamal@example.com',   N'+8801913000003', N'78 Zindabazar, Sylhet',            N'$2b$10$3lfPFiaHGTEpDNP5URbLwuUV4c7hgVWQWRtODsBtCc9ZFAqodWXX6', N'Customer', GETDATE(), GETDATE()),
-    (4, N'Nasrin Begum',   N'nasrin@example.com',   N'+8801611000004', N'22 Jessore Road, Khulna',          N'$2b$10$3lfPFiaHGTEpDNP5URbLwuUV4c7hgVWQWRtODsBtCc9ZFAqodWXX6', N'Customer', GETDATE(), GETDATE()),
-    (5, N'Tariqul Islam',  N'tariq@example.com',  N'+8801511000005', N'55 Shaheb Bazar, Rajshahi',        N'$2b$10$3lfPFiaHGTEpDNP5URbLwuUV4c7hgVWQWRtODsBtCc9ZFAqodWXX6', N'Customer', GETDATE(), GETDATE());
+    (1, N'Rahim Uddin',    N'rahim@example.com',    N'+8801711000001', N'123 Mirpur Road, Dhaka',           N'$2b$10$JBfORQVNT1QpouBa6Dqwbee5GeoBuXD53SLPaYSxcKyw4xzZLCdva', N'Admin', GETDATE(), GETDATE()),
+    (2, N'Fatema Akhter',  N'fatema@example.com',  N'+8801812000002', N'45 Agrabad, Chittagong',           N'$2b$10$JBfORQVNT1QpouBa6Dqwbee5GeoBuXD53SLPaYSxcKyw4xzZLCdva', N'Employee', GETDATE(), GETDATE()),
+    (3, N'Kamal Hossain',   N'kamal@example.com',   N'+8801913000003', N'78 Zindabazar, Sylhet',            N'$2b$10$JBfORQVNT1QpouBa6Dqwbee5GeoBuXD53SLPaYSxcKyw4xzZLCdva', N'Customer', GETDATE(), GETDATE()),
+    (4, N'Nasrin Begum',   N'nasrin@example.com',   N'+8801611000004', N'22 Jessore Road, Khulna',          N'$2b$10$JBfORQVNT1QpouBa6Dqwbee5GeoBuXD53SLPaYSxcKyw4xzZLCdva', N'Customer', GETDATE(), GETDATE()),
+    (5, N'Tariqul Islam',  N'tariq@example.com',  N'+8801511000005', N'55 Shaheb Bazar, Rajshahi',        N'$2b$10$JBfORQVNT1QpouBa6Dqwbee5GeoBuXD53SLPaYSxcKyw4xzZLCdva', N'Customer', GETDATE(), GETDATE());
 
 SET IDENTITY_INSERT users OFF;
 GO

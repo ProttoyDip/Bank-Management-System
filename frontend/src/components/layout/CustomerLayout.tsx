@@ -1,18 +1,33 @@
-import { useState } from "react";
-import { Outlet } from "react-router-dom";
-import { Box, AppBar, Toolbar, IconButton, Drawer, Typography, InputBase, Badge, Avatar, Menu, MenuItem } from "@mui/material";
+import { useState, useEffect } from "react";
+import { Outlet, useNavigate } from "react-router-dom";
+import { Box, AppBar, Toolbar, IconButton, Drawer, Typography, InputBase, Badge, Avatar, Menu, MenuItem, Divider } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import SearchIcon from "@mui/icons-material/Search";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import CustomerSidebar from "./CustomerSidebar";
 import { useAuth } from "../../context/AuthContext";
+import { Notification } from "../../types";
+import notificationService from "../../services/notificationService";
 
 const DRAWER_WIDTH = 260;
 
 export default function CustomerLayout() {
+  const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const { user } = useAuth();
+  const [notifAnchor, setNotifAnchor] = useState<null | HTMLElement>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const { user, logout } = useAuth();
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      if (user?.id) {
+        const notifs = await notificationService.getCustomerNotifications(user.id);
+        setNotifications(notifs);
+      }
+    };
+    fetchNotifications();
+  }, [user]);
 
   const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -21,6 +36,16 @@ export default function CustomerLayout() {
   const handleProfileMenuClose = () => {
     setAnchorEl(null);
   };
+
+  const handleNotifMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setNotifAnchor(event.currentTarget);
+  };
+
+  const handleNotifMenuClose = () => {
+    setNotifAnchor(null);
+  };
+
+  const unreadCount = notifications.filter(n => !n.isRead).length;
 
   const drawer = <CustomerSidebar />;
 
@@ -148,11 +173,59 @@ export default function CustomerLayout() {
             </Box>
             <Box sx={{ flexGrow: 1 }} />
             {/* Notifications */}
-            <IconButton>
-              <Badge badgeContent={1} color="error">
+            <IconButton onClick={handleNotifMenuOpen}>
+              <Badge badgeContent={unreadCount} color="error">
                 <NotificationsIcon sx={{ color: "text.secondary" }} />
               </Badge>
             </IconButton>
+            {/* Notification Menu */}
+            <Menu
+              anchorEl={notifAnchor}
+              open={Boolean(notifAnchor)}
+              onClose={handleNotifMenuClose}
+              PaperProps={{
+                sx: {
+                  width: 360,
+                  maxHeight: 400,
+                  mt: 1,
+                },
+              }}
+              transformOrigin={{ horizontal: "right", vertical: "top" }}
+              anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+            >
+              <Box sx={{ px: 2, py: 1.5 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  Notifications
+                </Typography>
+              </Box>
+              <Divider />
+              {notifications.length > 0 ? (
+                notifications.map((notif) => (
+                  <MenuItem key={notif.id} onClick={handleNotifMenuClose} sx={{ py: 1.5 }}>
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: notif.isRead ? 400 : 600 }}>
+                        {notif.title}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {notif.message}
+                      </Typography>
+                    </Box>
+                  </MenuItem>
+                ))
+              ) : (
+                <MenuItem sx={{ py: 1.5 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    No notifications
+                  </Typography>
+                </MenuItem>
+              )}
+              <Divider />
+              <MenuItem sx={{ justifyContent: "center", py: 1.5 }} onClick={handleNotifMenuClose}>
+                <Typography variant="body2" color="primary" fontWeight={600}>
+                  View All
+                </Typography>
+              </MenuItem>
+            </Menu>
             {/* Profile */}
             <IconButton onClick={handleProfileMenuOpen}>
               <Avatar sx={{ width: 36, height: 36, bgcolor: "primary.main", fontWeight: 600 }}>
@@ -178,9 +251,9 @@ export default function CustomerLayout() {
                   {user?.email || "customer@email.com"}
                 </Typography>
               </Box>
-              <MenuItem>Profile</MenuItem>
-              <MenuItem>Settings</MenuItem>
-              <MenuItem>Logout</MenuItem>
+              <MenuItem onClick={() => { handleProfileMenuClose(); navigate("/customer/settings"); }}>Profile</MenuItem>
+              <MenuItem onClick={() => { handleProfileMenuClose(); navigate("/customer/settings"); }}>Settings</MenuItem>
+              <MenuItem onClick={() => { handleProfileMenuClose(); logout(); navigate("/login"); }}>Logout</MenuItem>
             </Menu>
           </Toolbar>
         </AppBar>
