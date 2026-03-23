@@ -4,6 +4,7 @@ import { User } from "../entity/User";
 import { login as authLogin } from "../services/authService";
 import { hashPassword } from "../utils/hashPassword";
 import { sendVerificationEmail } from "../utils/emailService";
+import { AuthRequest } from "../middleware/auth";
 
 // verification code generator
 const generateVerificationCode = (): string => {
@@ -228,16 +229,19 @@ export class UserController {
             }
 
             email = email.toLowerCase();
+            console.log("🔍 Forgot password request for email:", email);
 
             const user = await userRepository.findOneBy({ email });
 
             if (!user) {
+                console.log("⚠️ User not found for email:", email);
                 res.json({
                     message: "If this email exists, a verification code will be sent"
                 });
                 return;
             }
 
+            console.log("✅ User found:", user.name, "- Generating verification code...");
             const code = generateVerificationCode();
 
             const expiry = new Date();
@@ -248,10 +252,12 @@ export class UserController {
 
             await userRepository.save(user);
 
-            try {
-                await sendVerificationEmail(email, code, user.name);
-            } catch (err) {
-                console.error("Email sending failed:", err);
+            const emailSent = await sendVerificationEmail(email, code, user.name);
+
+            if (!emailSent) {
+                console.error("Email sending failed for:", email);
+                res.status(500).json({ error: "Failed to send verification email. Please try again later." });
+                return;
             }
 
             res.json({
@@ -361,6 +367,47 @@ export class UserController {
 
         } catch (error) {
             console.error("Change password error:", error);
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
+    // =============================== 
+    // AUTHENTICATED PASSWORD CHANGE
+    // ===============================
+    static async changePasswordAuth(req: AuthRequest, res: Response): Promise<void> {
+        try {
+            const userId = Number(req.user?.id);
+            const { currentPassword, newPassword } = req.body;
+
+            console.log('Password change attempt for userId:', userId);
+
+            if (!currentPassword || !newPassword) {
+                res.status(400).json({ error: "Current and new passwords required" });
+                return;
+            }
+
+            if (newPassword.length < 6) {
+                res.status(400).json({ error: "New password must be at least 6 characters" });
+                return;
+            }
+
+            const { changePassword } = require("../services/authService");
+            const result = await changePassword(userId, currentPassword, newPassword);
+
+            console.log('Password change result:', result);
+
+            if (!result.success) {
+                res.status(400).json({ error: result.error });
+                return;
+            }
+
+            res.json({ 
+                message: "Password changed successfully",
+                success: true 
+            });
+
+        } catch (error) {
+            console.error("Authenticated password change error:", error);
             res.status(500).json({ error: "Internal server error" });
         }
     }

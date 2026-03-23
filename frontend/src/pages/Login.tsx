@@ -113,25 +113,35 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("🔍 [LOGIN] Form submit triggered - preventDefault called");
+    console.log("🔍 [LOGIN] Credentials:", { email: email ? email.substring(0,3)+'***' : email, hasPassword: !!password });
     setLoading(true);
     setError("");
 
     try {
+      console.log("🔍 [LOGIN] Calling authService.login...");
       const response = await authService.login({ email, password });
+      console.log("✅ [LOGIN] Success:", response.user.role);
       
       // Use the JWT token and user data from the response
+      // Convert the role string from server to UserRole enum
+      const serverRole = response.user.role?.toLowerCase() || "customer";
+      const userRole = serverRole === "admin" ? UserRole.ADMIN : 
+                       serverRole === "employee" ? UserRole.EMPLOYEE : 
+                       UserRole.CUSTOMER;
+      
       const userData = {
         id: response.user.id,
         name: response.user.name,
         email: response.user.email,
-        role: getRoleFromId(selectedRole),
+        role: userRole,
       };
       
       login(userData, response.token);
-      navigate(getRedirectPath(selectedRole));
+      navigate(getRedirectPath(serverRole));
     } catch (err: any) {
-      console.error("Login error:", err);
-      setError(err.response?.data?.error || "Invalid credentials. Please try again.");
+      console.error("❌ [LOGIN] Error:", err.response?.status, err.response?.data);
+      setError(err.response?.data?.error || "Invalid Email or Password");
     } finally {
       setLoading(false);
     }

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Box,
   Typography,
@@ -18,6 +19,7 @@ import {
   FormControl,
   InputLabel,
   Grid,
+  CircularProgress,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import {
@@ -30,60 +32,172 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { motion } from "framer-motion";
-
-interface Transaction {
-  id: number;
-  date: string;
-  description: string;
-  type: "Deposit" | "Withdraw" | "Transfer In" | "Transfer Out";
-  amount: number;
-  balance: number;
-  reference: string;
-}
-
-const mockTransactions: Transaction[] = [
-  { id: 1, date: "2024-01-15", description: "Cash Deposit", type: "Deposit", amount: 50000, balance: 75000, reference: "TXN-001" },
-  { id: 2, date: "2024-01-14", description: "ATM Withdrawal", type: "Withdraw", amount: -10000, balance: 25000, reference: "TXN-002" },
-  { id: 3, date: "2024-01-13", description: "Transfer from John", type: "Transfer In", amount: 25000, balance: 35000, reference: "TXN-003" },
-  { id: 4, date: "2024-01-12", description: "Bill Payment", type: "Withdraw", amount: -5000, balance: 10000, reference: "TXN-004" },
-  { id: 5, date: "2024-01-11", description: "Cash Deposit", type: "Deposit", amount: 15000, balance: 15000, reference: "TXN-005" },
-  { id: 6, date: "2024-01-10", description: "Online Transfer", type: "Transfer Out", amount: -8000, balance: 0, reference: "TXN-006" },
-  { id: 7, date: "2024-01-09", description: "Salary Credit", type: "Deposit", amount: 8000, balance: 8000, reference: "TXN-007" },
-];
-
-const chartData = [
-  { month: "Week 1", deposits: 65000, withdrawals: 23000 },
-  { month: "Week 2", deposits: 45000, withdrawals: 18000 },
-  { month: "Week 3", deposits: 72000, withdrawals: 35000 },
-  { month: "Week 4", deposits: 58000, withdrawals: 28000 },
-];
+import api from "../../services/api";
+import { useAuth } from "../../context/AuthContext";
+import { Transaction, TransactionType, ApiResponse, UserRole } from "../../types";
 
 export default function TransactionHistory() {
+  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
+  const tableRef = useRef<HTMLTableElement>(null);
+
+  useEffect(() => {
+    const fetchTransactions = async () => {
+      try {
+        setLoading(true);
+        setError("");
+        
+        let response;
+        
+        if (user?.role === UserRole.CUSTOMER && user.accounts && user.accounts.length > 0) {
+          const accountId = user.accounts[0].id;
+          response = await api.get<ApiResponse<Transaction[]>>(`/transactions/account/${accountId}`);
+        } else {
+          response = await api.get<ApiResponse<Transaction[]>>("/transactions");
+        }
+        
+        const sortedTransactions = (response.data.data || []).sort(
+          (a: Transaction, b: Transaction) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        
+        setTransactions(sortedTransactions);
+      } catch (err: any) {
+        console.error("Error fetching transactions:", err);
+        setError(err.response?.data?.error || "Failed to load transactions");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTransactions();
+  }, [user]);
+
+  useEffect(() => {
+    const txId = searchParams.get('txId');
+    if (txId && transactions.length > 0) {
+      const targetTx = transactions.find(t => t.id === parseInt(txId));
+      if (targetTx) {
+        setSearch(targetTx.referenceNumber || targetTx.description || '');
+        setTypeFilter(targetTx.type.toLowerCase().includes('deposit') ? 'deposit' : targetTx.type.toLowerCase().includes('withdraw') ? 'withdraw' : 'transfer');
+        setTimeout(() => {
+          if (tableRef.current) {
+            tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 500);
+      }
+    }
+  }, [transactions, searchParams]);
+
+  const chartData = useMemo(() => {
+    if (transactions.length === 0) return [];
+
+    const now = new Date();
+    const fourWeeksAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+    
+    const weeklyData: { [key: string]: { deposits: number; withdrawals: number } } = {};
+    
+    for (let i = 0; i < 4; i++) {
+      weeklyData[`Week ${i + 1}`] = { deposits: 0, withdrawals: 0 };
+    }
+
+    transactions.forEach((txn) => {
+      const txnDate = new Date(txn.createdAt);
+      if (txnDate < fourWeeksAgo) return;
+
+      const daysDiff = Math.floor((now.getTime() - txnDate.getTime()) / (24 * 60 * 60 * 1000));
+      const weekIndex = Math.min(3, Math.floor((27 - daysDiff) / 7));
+      const weekKey = `Week ${weekIndex + 1}`;
+
+      if (txn.type === TransactionType.DEPOSIT || txn.type === TransactionType.TRANSFER_IN) {
+        weeklyData[weekKey].deposits += txn.amount;
+      } else if (txn.type === TransactionType.WITHDRAW || txn.type === TransactionType.TRANSFER_OUT) {
+        weeklyData[weekKey].withdrawals += Math.abs(txn.amount);
+      }
+    });
+
+    return Object.entries(weeklyData).map(([month, data]) => ({
+      month,
+      deposits: data.deposits,
+      withdrawals: data.withdrawals,
+    }));
+  }, [transactions]);
+
+  const summaryStats = useMemo(() => {
+    const totalDeposits = transactions
+      .filter(t => t.type === TransactionType.DEPOSIT || t.type === TransactionType.TRANSFER_IN)
+      .reduce((sum, t) => sum + t.amount, 0);
+    
+    const totalWithdrawals = transactions
+      .filter(t => t.type === TransactionType.WITHDRAW || t.type === TransactionType.TRANSFER_OUT)
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+    return {
+      totalDeposits,
+      totalWithdrawals,
+      netFlow: totalDeposits - totalWithdrawals,
+      totalTransactions: transactions.length,
+    };
+  }, [transactions]);
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case "Deposit":
-      case "Transfer In":
+      case TransactionType.DEPOSIT:
+      case TransactionType.TRANSFER_IN:
         return "success";
-      case "Withdraw":
-      case "Transfer Out":
+      case TransactionType.WITHDRAW:
+      case TransactionType.TRANSFER_OUT:
         return "error";
       default:
         return "default";
     }
   };
 
-  const filteredTransactions = mockTransactions.filter((t) => {
-    const matchesSearch = t.description.toLowerCase().includes(search.toLowerCase()) ||
-      t.reference.toLowerCase().includes(search.toLowerCase());
-    const matchesType = typeFilter === "all" || t.type.toLowerCase().includes(typeFilter.toLowerCase());
+  const formatType = (type: string) => {
+    return type.replace(/_/g, " ");
+  };
+
+  const filteredTransactions = transactions.filter((t) => {
+    const matchesSearch = 
+      t.description?.toLowerCase().includes(search.toLowerCase()) ||
+      t.referenceNumber?.toLowerCase().includes(search.toLowerCase());
+    const matchesType = typeFilter === "all" || 
+      t.type.toLowerCase().includes(typeFilter.toLowerCase());
     return matchesSearch && matchesType;
   });
 
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  if (loading) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 400 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ maxWidth: {xs: '100%', sm: 1200, lg: 1600}, mx: "auto", p: {xs: 2, sm: 3} }}>
+        <Typography color="error" variant="h6">{error}</Typography>
+      </Box>
+    );
+  }
+
   return (
-    <Box sx={{ maxWidth: 1600, mx: "auto" }}>
+    <Box sx={{ maxWidth: {xs: '100%', sm: 1200, lg: 1600}, mx: "auto", px: {xs: 1, sm: 2, lg: 0} }}>
       {/* Page Header */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>Transactions</Typography>
@@ -94,9 +208,9 @@ export default function TransactionHistory() {
 
       {/* Filters */}
       <Card sx={{ mb: 4, border: "1px solid", borderColor: "divider" }}>
-        <CardContent sx={{ p: 3 }}>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={6}>
+        <CardContent sx={{ p: {xs: 2, sm: 3} }}>
+          <Grid container spacing={2} alignItems="center" flexWrap="wrap">
+            <Grid item xs={12} sm={6} md={4}>
               <TextField
                 placeholder="Search transactions..."
                 fullWidth
@@ -112,7 +226,7 @@ export default function TransactionHistory() {
                 }}
               />
             </Grid>
-            <Grid item xs={12} md={3}>
+            <Grid item xs={12} sm={6} md={4}>
               <FormControl fullWidth size="small">
                 <InputLabel>Type</InputLabel>
                 <Select
@@ -133,7 +247,7 @@ export default function TransactionHistory() {
 
       {/* Chart and Summary */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} lg={8}>
+        <Grid item xs={12} lg={8} xl={9}>
           <Card
             component={motion.div}
             initial={{ opacity: 0, y: 20 }}
@@ -141,7 +255,7 @@ export default function TransactionHistory() {
             transition={{ duration: 0.3 }}
             sx={{ border: "1px solid", borderColor: "divider" }}
           >
-            <CardContent sx={{ p: 3 }}>
+            <CardContent sx={{ p: {xs: 2, sm: 3} }}>
               <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>Weekly Overview</Typography>
               <Box sx={{ height: 280 }}>
                 <ResponsiveContainer>
@@ -158,7 +272,7 @@ export default function TransactionHistory() {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} lg={4}>
+        <Grid item xs={12} lg={4} xl={3}>
           <Card
             component={motion.div}
             initial={{ opacity: 0, y: 20 }}
@@ -166,31 +280,31 @@ export default function TransactionHistory() {
             transition={{ duration: 0.3, delay: 0.1 }}
             sx={{ border: "1px solid", borderColor: "divider", height: "100%" }}
           >
-            <CardContent sx={{ p: 3 }}>
+            <CardContent sx={{ p: {xs: 2, sm: 3} }}>
               <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>Summary</Typography>
               <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <Typography variant="body2" color="text.secondary">Total Deposits</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 600, color: "success.main" }}>
-                    ৳240,000
+                    ৳{summaryStats.totalDeposits.toLocaleString()}
                   </Typography>
                 </Box>
                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <Typography variant="body2" color="text.secondary">Total Withdrawals</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 600, color: "error.main" }}>
-                    ৳104,000
+                    ৳{summaryStats.totalWithdrawals.toLocaleString()}
                   </Typography>
                 </Box>
                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <Typography variant="body2" color="text.secondary">Net Flow</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 600, color: "primary.main" }}>
-                    ৳136,000
+                    ৳{summaryStats.netFlow.toLocaleString()}
                   </Typography>
                 </Box>
                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <Typography variant="body2" color="text.secondary">Total Transactions</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {mockTransactions.length}
+                    {summaryStats.totalTransactions}
                   </Typography>
                 </Box>
               </Box>
@@ -202,12 +316,12 @@ export default function TransactionHistory() {
       {/* Transactions Table */}
       <Card sx={{ border: "1px solid", borderColor: "divider" }}>
         <CardContent sx={{ p: 0 }}>
-          <Typography variant="h6" sx={{ p: 3, pb: 2, fontWeight: 600 }}>Transaction History</Typography>
-          <TableContainer>
-            <Table>
+          <Typography variant="h6" sx={{ p: {xs: 2, sm: 3}, pb: 2, fontWeight: 600 }}>Transaction History</Typography>
+          <TableContainer ref={tableRef} sx={{ overflowX: {xs: 'auto', md: 'visible'} }}>
+            <Table sx={{ minWidth: '100%' }}>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
+                  <TableCell sx={{ fontWeight: 600, px: {xs:0.5, sm:1.5, md:2.5, lg:3} }}>Date & Time</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Reference</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Description</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
@@ -216,16 +330,25 @@ export default function TransactionHistory() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredTransactions.map((transaction) => (
-                  <TableRow key={transaction.id} hover>
-                    <TableCell>{transaction.date}</TableCell>
-                    <TableCell sx={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
-                      {transaction.reference}
+                {filteredTransactions.map((transaction, index) => (
+                  <TableRow 
+                    key={transaction.id} 
+                    hover
+                    sx={{
+                      backgroundColor: search && (
+                        transaction.description?.toLowerCase().includes(search.toLowerCase()) ||
+                        transaction.referenceNumber?.toLowerCase().includes(search.toLowerCase())
+                      ) ? 'primary.50' : 'inherit',
+                    }}
+                  >
+                    <TableCell>{formatDate(transaction.createdAt)}</TableCell>
+                    <TableCell sx={{ fontFamily: "monospace", fontSize: {xs:'0.75rem', sm:'0.8rem', md:'0.85rem'} }}>
+                      {transaction.referenceNumber}
                     </TableCell>
-                    <TableCell>{transaction.description}</TableCell>
+                    <TableCell sx={{ maxWidth: {xs: 120, sm: 200}, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{transaction.description}</TableCell>
                     <TableCell>
                       <Chip
-                        label={transaction.type}
+                        label={formatType(transaction.type)}
                         size="small"
                         color={getTypeColor(transaction.type) as any}
                         variant="outlined"
@@ -242,7 +365,7 @@ export default function TransactionHistory() {
                       {transaction.amount > 0 ? "+" : ""}৳{Math.abs(transaction.amount).toLocaleString()}
                     </TableCell>
                     <TableCell align="right" sx={{ fontFamily: "monospace", fontWeight: 500 }}>
-                      ৳{transaction.balance.toLocaleString()}
+                      ৳{transaction.balanceAfter.toLocaleString()}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -261,4 +384,3 @@ export default function TransactionHistory() {
     </Box>
   );
 }
-

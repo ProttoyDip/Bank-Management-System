@@ -1,18 +1,23 @@
 import { useState } from "react";
-import { Outlet } from "react-router-dom";
-import { Box, AppBar, Toolbar, IconButton, Drawer, Typography, InputBase, Badge, Avatar, Menu, MenuItem } from "@mui/material";
+import { Outlet, useNavigate } from "react-router-dom";
+import { Box, AppBar, Toolbar, IconButton, Drawer, Typography, InputBase, Badge, Avatar, Menu, MenuItem, Divider } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import SearchIcon from "@mui/icons-material/Search";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import EmployeeSidebar from "./EmployeeSidebar";
 import { useAuth } from "../../context/AuthContext";
+import { Notification } from "../../types";
+import { useNotification } from "../../context/NotificationContext";
 
 const DRAWER_WIDTH = 260;
 
 export default function EmployeeLayout() {
+  const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const { user } = useAuth();
+  const [notifAnchor, setNotifAnchor] = useState<null | HTMLElement>(null);
+  const { user, logout } = useAuth();
+  const { unreadCount, notifications, markAllAsRead } = useNotification();
 
   const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -20,6 +25,15 @@ export default function EmployeeLayout() {
 
   const handleProfileMenuClose = () => {
     setAnchorEl(null);
+  };
+
+  const handleNotifMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    markAllAsRead();
+    setNotifAnchor(event.currentTarget);
+  };
+
+  const handleNotifMenuClose = () => {
+    setNotifAnchor(null);
   };
 
   const drawer = <EmployeeSidebar />;
@@ -148,11 +162,74 @@ export default function EmployeeLayout() {
             </Box>
             <Box sx={{ flexGrow: 1 }} />
             {/* Notifications */}
-            <IconButton>
-              <Badge badgeContent={2} color="error">
+            <IconButton onClick={handleNotifMenuOpen}>
+              <Badge badgeContent={unreadCount} color="error">
                 <NotificationsIcon sx={{ color: "text.secondary" }} />
               </Badge>
             </IconButton>
+            {/* Notification Menu */}
+            <Menu
+              anchorEl={notifAnchor}
+              open={Boolean(notifAnchor)}
+              onClose={handleNotifMenuClose}
+              transformOrigin={{ horizontal: "right", vertical: "top" }}
+              anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+            >
+              <Box sx={{ px: 2, py: 1.5 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  Notifications
+                </Typography>
+              </Box>
+              <Divider />
+              {notifications.length > 0 ? (
+                notifications.map((notif) => (
+                  <MenuItem 
+                    key={notif.id} 
+                    onClick={handleNotifMenuClose}
+                    sx={{ 
+                      px: 3, 
+                      py: 2,
+                      borderRadius: 1,
+                      mx: 1,
+                      mb: 1,
+                      transition: "all 0.2s ease",
+                      "&:hover": { transform: "translateX(4px)" }
+                    }}
+                  >
+                    <Box sx={{ display: "flex", flexDirection: "column", width: "100%" }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+                        <Typography variant="subtitle2" sx={{ 
+                          fontWeight: 700,
+                          color: notif.isRead ? "text.primary" : "primary.main"
+                        }}>
+                          {notif.title}
+                        </Typography>
+                        {!notif.isRead && (
+                          <Box sx={{
+                            width: 8, height: 8, borderRadius: "50%", bgcolor: "error.main"
+                          }} />
+                        )}
+                      </Box>
+                      <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.4 }}>
+                        {notif.message}
+                      </Typography>
+                    </Box>
+                  </MenuItem>
+                ))
+              ) : (
+                <MenuItem sx={{ py: 1.5 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    No notifications
+                  </Typography>
+                </MenuItem>
+              )}
+              <Divider />
+              <MenuItem sx={{ justifyContent: "center", py: 1.5 }} onClick={handleNotifMenuClose}>
+                <Typography variant="body2" color="primary" fontWeight={600}>
+                  View All
+                </Typography>
+              </MenuItem>
+            </Menu>
             {/* Profile */}
             <IconButton onClick={handleProfileMenuOpen}>
               <Avatar sx={{ width: 36, height: 36, bgcolor: "primary.main", fontWeight: 600 }}>
@@ -178,9 +255,9 @@ export default function EmployeeLayout() {
                   {user?.email || "employee@bank.com"}
                 </Typography>
               </Box>
-              <MenuItem>Profile</MenuItem>
-              <MenuItem>Settings</MenuItem>
-              <MenuItem>Logout</MenuItem>
+              <MenuItem onClick={() => { handleProfileMenuClose(); navigate("/employee/settings"); }}>Profile</MenuItem>
+              <MenuItem onClick={() => { handleProfileMenuClose(); navigate("/employee/settings"); }}>Settings</MenuItem>
+              <MenuItem onClick={() => { handleProfileMenuClose(); logout(); navigate("/login"); }}>Logout</MenuItem>
             </Menu>
           </Toolbar>
         </AppBar>

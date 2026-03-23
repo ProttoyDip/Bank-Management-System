@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyToken } from "../utils/generateToken";
 
-interface AuthRequest extends Request {
+export interface AuthRequest extends Request {
     user?: {
         id: number;
         email: string;

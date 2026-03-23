@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useSearch } from "../../context/SearchContext";
+import ClearIcon from "@mui/icons-material/Clear";
 import {
   AppBar,
   Box,
@@ -20,34 +22,32 @@ import NotificationsIcon from "@mui/icons-material/Notifications";
 import PersonIcon from "@mui/icons-material/Person";
 import SettingsIcon from "@mui/icons-material/Settings";
 import LogoutIcon from "@mui/icons-material/Logout";
-import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useNotification } from "../../context/NotificationContext";
+import { Notification } from "../../types";
 
 interface NavbarProps {
   onMenuClick: () => void;
   sidebarWidth: number;
 }
 
-const notifications = [
-  { id: 1, message: "New account created", time: "2 min ago" },
-  { id: 2, message: "Loan application received", time: "1 hour ago" },
-  { id: 3, message: "Transaction completed", time: "3 hours ago" },
-];
-
 export default function Navbar({ onMenuClick, sidebarWidth }: NavbarProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [notifAnchor, setNotifAnchor] = useState<null | HTMLElement>(null);
   const [searchFocused, setSearchFocused] = useState(false);
+  const { searchQuery, setSearchQuery } = useSearch();
 
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const { unreadCount, notifications, markAllAsRead } = useNotification();
 
   const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
   };
 
   const handleNotifMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    markAllAsRead();
     setNotifAnchor(event.currentTarget);
   };
 
@@ -85,7 +85,7 @@ export default function Navbar({ onMenuClick, sidebarWidth }: NavbarProps) {
         transition: "width 0.3s ease, margin-left 0.3s ease",
       }}
     >
-      <Toolbar sx={{ justifyContent: "space-between", px: { xs: 2, md: 3 } }}>
+        <Toolbar sx={{ justifyContent: "space-between", px: { xs: 1.5, md: 3 }, gap: {xs:1, md:0} }}>
         {/* Mobile Menu Button */}
         <IconButton
           edge="start"
@@ -98,9 +98,10 @@ export default function Navbar({ onMenuClick, sidebarWidth }: NavbarProps) {
         {/* Search Bar */}
         <Box
           sx={{
-            flex: 1,
-            maxWidth: 480,
-            ml: { xs: 2, md: 0 },
+          flexBasis: {xs: '100%', md: 0},
+          maxWidth: {xs: '100%', md: 480},
+          ml: { xs: 0, md: 0 },
+          order: {xs: 3, md: 2},
           }}
         >
           <Box
@@ -122,6 +123,8 @@ export default function Navbar({ onMenuClick, sidebarWidth }: NavbarProps) {
             <SearchIcon sx={{ color: "text.secondary", mr: 1 }} />
             <InputBase
               placeholder="Search customers, accounts, transactions..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={() => setSearchFocused(true)}
               onBlur={() => setSearchFocused(false)}
               sx={{
@@ -133,6 +136,15 @@ export default function Navbar({ onMenuClick, sidebarWidth }: NavbarProps) {
                 },
               }}
             />
+            {searchQuery && (
+              <IconButton
+                size="small"
+                onClick={() => setSearchQuery("")}
+                sx={{ ml: 1 }}
+              >
+                <ClearIcon fontSize="small" />
+              </IconButton>
+            )}
             <Typography
               variant="caption"
               sx={{
@@ -154,7 +166,7 @@ export default function Navbar({ onMenuClick, sidebarWidth }: NavbarProps) {
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           {/* Notifications */}
           <IconButton onClick={handleNotifMenuOpen} sx={{ color: "text.secondary" }}>
-            <Badge badgeContent={notifications.length} color="error">
+            <Badge badgeContent={unreadCount} color="error">
               <NotificationsIcon />
             </Badge>
           </IconButton>
@@ -187,14 +199,14 @@ export default function Navbar({ onMenuClick, sidebarWidth }: NavbarProps) {
             >
               A
             </Avatar>
-            <Box sx={{ display: { xs: "none", sm: "block" } }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
-                Admin User
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Administrator
-              </Typography>
-            </Box>
+              <Box sx={{ display: { xs: "none", md: "flex" }, flexDirection: 'column' }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, lineHeight: 1.1 }}>
+                  Admin User
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Administrator
+                </Typography>
+              </Box>
           </Box>
         </Box>
 
@@ -221,10 +233,13 @@ export default function Navbar({ onMenuClick, sidebarWidth }: NavbarProps) {
           <Divider />
           {notifications.map((notif) => (
             <MenuItem key={notif.id} onClick={handleClose} sx={{ py: 1.5 }}>
-              <Box>
-                <Typography variant="body2">{notif.message}</Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                <Typography variant="body2">{notif.title}</Typography>
+                <Typography variant="body2" sx={{ fontSize: '0.875rem', color: 'text.secondary' }}>
+                  {notif.message}
+                </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  {notif.time}
+                  {new Date(notif.createdAt).toLocaleString()}
                 </Typography>
               </Box>
             </MenuItem>

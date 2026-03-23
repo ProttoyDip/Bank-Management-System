@@ -1,0 +1,138 @@
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { UserRole, Notification } from '../types';
+import notificationService from '../services/notificationService';
+import { useAuth } from './AuthContext';
+
+interface NotificationContextType {
+  notifications: Notification[];
+  unreadCount: number;
+  loading: boolean;
+  loadNotifications: () => Promise<void>;
+  markAsRead: (id: number) => void;
+  markAllAsRead: () => void;
+}
+
+const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
+
+export function NotificationProvider({ children }: { children: ReactNode }) {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+
+  const role = user?.role || 'Customer' as UserRole;
+  const userId = user?.id;
+
+  const getStorageKey = useCallback(() => {
+    return `notifications_${role.toLowerCase()}${userId ? `_${userId}` : ''}`;
+  }, [role, userId]);
+
+  const loadNotifications = useCallback(async () => {
+    setLoading(true);
+    try {
+      let fetched: Notification[];
+      switch (role) {
+        case 'Customer':
+          fetched = await notificationService.getCustomerNotifications(userId!);
+          break;
+        case 'Admin':
+          fetched = await notificationService.getAdminNotifications();
+          break;
+        case 'Employee':
+          fetched = await notificationService.getEmployeeNotifications();
+          break;
+        default:
+          fetched = [];
+      }
+
+      // Merge with localStorage (preserve read status)
+      const storageKey = getStorageKey();
+      const stored = localStorage.getItem(storageKey);
+      const storedMap = stored ? JSON.parse(stored) as Record<number, boolean> : {};
+
+      const merged = fetched.map(notif => ({
+        ...notif,
+        isRead: storedMap[notif.id] || notif.isRead
+      }));
+
+      setNotifications(merged);
+      localStorage.setItem(storageKey, JSON.stringify(storedMap));
+    } catch (error) {
+      console.error('Failed to load notifications:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [role, userId, getStorageKey]);
+
+  const markAsRead = useCallback((id: number) => {
+    setNotifications(prev => {
+      const updated = prev.map(notif => 
+        notif.id === id ? { ...notif, isRead: true } : notif
+      );
+      // Update storage
+      const storageKey = getStorageKey();
+      const stored = localStorage.getItem(storageKey);
+      const storedMap = stored ? JSON.parse(stored) as Record<number, boolean> : {};
+      storedMap[id] = true;
+      localStorage.setItem(storageKey, JSON.stringify(storedMap));
+      return updated;
+    });
+  }, [getStorageKey]);
+
+  const markAllAsRead = useCallback(() => {
+    setNotifications(prev => {
+      const unreadIds = prev.filter(n => !n.isRead).map(n => n.id);
+      if (unreadIds.length === 0) return prev;
+
+      // Update storage
+      const storageKey = getStorageKey();
+      const stored = localStorage.getItem(storageKey);
+      const storedMap = stored ? JSON.parse(stored) as Record<number, boolean> : {};
+      unreadIds.forEach(id => storedMap[id] = true);
+      localStorage.setItem(storageKey, JSON.stringify(storedMap));
+
+      return prev.map(notif => ({ ...notif, isRead: true }));
+    });
+  }, [getStorageKey]);
+
+  // Initial load and polling
+  useEffect(() => {
+    if (role) {
+      loadNotifications();
+    }
+  }, [loadNotifications, role]);
+
+  // Poll every 30 seconds
+  useEffect(() => {
+    if (!loading && notifications.length > 0) {
+      const interval = setInterval(() => {
+        loadNotifications();
+      }, 30000);
+
+      return () => clearInterval(interval);
+    }
+  }, [loadNotifications, loading, notifications.length]);
+
+  const value: NotificationContextType = {
+    notifications,
+    unreadCount: notifications.filter(n => !n.isRead).length,
+    loading,
+    loadNotifications,
+    markAsRead,
+    markAllAsRead
+  };
+
+  return (
+    <NotificationContext.Provider value={value}>
+      {children}
+    </NotificationContext.Provider>
+  );
+}
+
+export function useNotification() {
+  const context = useContext(NotificationContext);
+  if (context === undefined) {
+    throw new Error('useNotification must be used within a NotificationProvider');
+  }
+  return context;
+}
+

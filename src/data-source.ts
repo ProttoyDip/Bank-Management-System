@@ -19,7 +19,7 @@ const dockerConfig: DataSourceOptions = {
     port: 1433,
     database: database,
     username: "sa",
-    password: "BankProject@123",
+    password: "12345678",
     options: {
         encrypt: false,
         trustServerCertificate: true,

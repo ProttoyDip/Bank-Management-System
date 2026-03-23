@@ -59,11 +59,11 @@ export interface Loan {
 }
 
 export enum LoanType {
-  PERSONAL = "Personal Loan",
-  HOME = "Home Loan",
-  CAR = "Car Loan",
-  EDUCATION = "Education Loan",
-  BUSINESS = "Business Loan",
+  PERSONAL = "Personal",
+  HOME = "Home",
+  CAR = "Car",
+  EDUCATION = "Education",
+  BUSINESS = "Business",
 }
 
 export enum LoanStatus {
@@ -204,5 +204,24 @@ export interface MonthlyData {
   deposits: number;
   withdrawals: number;
   loans: number;
+}
+
+// ── Notification Types ──
+export interface Notification {
+  id: number;
+  title: string;
+  message: string;
+  type: NotificationType;
+  transactionId?: number;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export enum NotificationType {
+  TRANSACTION = "Transaction",
+  LOAN = "Loan",
+  ACCOUNT = "Account",
+  SYSTEM = "System",
+  WARNING = "Warning",
 }
 
