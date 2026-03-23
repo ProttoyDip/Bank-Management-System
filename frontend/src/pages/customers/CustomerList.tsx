@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { useSearch } from "../../context/SearchContext";
 import {
   Box,
   Typography,
@@ -33,6 +34,18 @@ const emptyForm: CreateUserPayload = { name: "", email: "", phone: "", address: 
 
 export default function CustomerList() {
   const [users, setUsers] = useState<User[]>([]);
+  const { searchQuery } = useSearch();
+
+  const filteredUsers = useMemo(() => {
+    if (!searchQuery.trim()) return users;
+    const query = searchQuery.toLowerCase();
+    return users.filter(user =>
+      user.name.toLowerCase().includes(query) ||
+      user.email.toLowerCase().includes(query) ||
+      user.phone?.toLowerCase().includes(query) ||
+      user.address?.toLowerCase().includes(query)
+    );
+  }, [users, searchQuery]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -96,7 +109,7 @@ export default function CustomerList() {
   };
 
   return (
-    <Box sx={{ maxWidth: 1600, mx: "auto" }}>
+    <Box sx={{ maxWidth: {xs: '100%', sm: 1200, lg: 1600}, mx: "auto", px: {xs: 2, sm: 0} }}>
       {/* Page Header */}
       <Box
         sx={{
@@ -105,7 +118,8 @@ export default function CustomerList() {
           alignItems: "flex-start",
           mb: 4,
           flexDirection: { xs: "column", sm: "row" },
-          gap: { xs: 2, sm: 0 },
+          gap: { xs: 3, sm: 0 },
+          px: {xs: 1, md: 0}
         }}
       >
         <Box>
@@ -124,7 +138,7 @@ export default function CustomerList() {
       {/* Customer Cards */}
       {loading ? (
         <Grid container spacing={3}>
-          {[1, 2, 3, 4].map((i) => (
+          {Array.from({ length: 4 }).map((_, i) => (
             <Grid item xs={12} sm={6} md={4} key={i}>
               <Card sx={{ border: "1px solid", borderColor: "divider", p: 2 }}>
                 <Box sx={{ display: "flex", gap: 2 }}>
@@ -144,7 +158,7 @@ export default function CustomerList() {
         </Card>
       ) : (
         <Grid container spacing={3}>
-          {users.map((user, index) => (
+          {filteredUsers.map((user, index) => (
             <Grid item xs={12} sm={6} md={4} key={user.id}>
               <Card
                 component={motion.div}
@@ -159,7 +173,7 @@ export default function CustomerList() {
                   "&:hover": { boxShadow: "0 8px 24px rgba(0,0,0,0.08)" },
                 }}
               >
-                <CardContent sx={{ p: 3 }}>
+                <CardContent sx={{ p: {xs: 2.5, md: 3} }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
                     <Avatar sx={{ bgcolor: "primary.main", width: 48, height: 48, fontWeight: 600 }}>
                       {user.name.charAt(0).toUpperCase()}

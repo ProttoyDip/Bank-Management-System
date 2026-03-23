@@ -19,7 +19,7 @@ const dockerConfig: DataSourceOptions = {
     port: 1433,
     database: database,
     username: "sa",
-    password: "BankProject@123",
+    password: "12345678",
     options: {
         encrypt: false,
         trustServerCertificate: true,
@@ -30,7 +30,7 @@ const dockerConfig: DataSourceOptions = {
 const localConfig: DataSourceOptions = {
     type: "mssql",
     host: "localhost",
-    port: 52171,
+    port: 1433,
     database: database,
     username: "sa",
     password: "12345678",

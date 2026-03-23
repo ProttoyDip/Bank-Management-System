@@ -1,13 +1,34 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { Box, AppBar, Toolbar, IconButton, Drawer, Typography, InputBase, Badge, Avatar, Menu, MenuItem, Divider } from "@mui/material";
+import { 
+  Box, 
+  AppBar, 
+  Toolbar, 
+  IconButton, 
+  Drawer, 
+  Typography, 
+  InputBase, 
+  Badge, 
+  Avatar, 
+  Menu, 
+  MenuItem, 
+  Divider,
+  Tooltip
+} from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
+import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import SearchIcon from "@mui/icons-material/Search";
 import NotificationsIcon from "@mui/icons-material/Notifications";
+import Brightness4Icon from "@mui/icons-material/Brightness4";
+import Brightness7Icon from "@mui/icons-material/Brightness7";
 import CustomerSidebar from "./CustomerSidebar";
 import { useAuth } from "../../context/AuthContext";
-import { Notification } from "../../types";
-import notificationService from "../../services/notificationService";
+import { useThemeContext } from "../../context/ThemeContext";
+import { Notification, NotificationType } from "../../types";
+import { useNotification } from "../../context/NotificationContext";
+import { useSearch } from "../../context/SearchContext";
+import ClearIcon from "@mui/icons-material/Clear";
+
 
 const DRAWER_WIDTH = 260;
 
@@ -16,18 +37,10 @@ export default function CustomerLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [notifAnchor, setNotifAnchor] = useState<null | HTMLElement>(null);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const { user, logout } = useAuth();
-
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      if (user?.id) {
-        const notifs = await notificationService.getCustomerNotifications(user.id);
-        setNotifications(notifs);
-      }
-    };
-    fetchNotifications();
-  }, [user]);
+  const { unreadCount, notifications, markAllAsRead } = useNotification();
+  const { isDarkMode, toggleDarkMode } = useThemeContext();
+  const { searchQuery, setSearchQuery } = useSearch();
 
   const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -38,6 +51,7 @@ export default function CustomerLayout() {
   };
 
   const handleNotifMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    markAllAsRead();
     setNotifAnchor(event.currentTarget);
   };
 
@@ -45,9 +59,25 @@ export default function CustomerLayout() {
     setNotifAnchor(null);
   };
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const handleNotificationClick = (notif: Notification) => {
+    handleNotifMenuClose();
+    if (notif.type === NotificationType.TRANSACTION && notif.transactionId) {
+      navigate(`/customer/transactions?txId=${notif.transactionId}`);
+    }
+  };
+
+  const handleViewAll = () => {
+    navigate('/customer/transactions');
+    handleNotifMenuClose();
+  };
 
   const drawer = <CustomerSidebar />;
+
+  const navbarBg = isDarkMode 
+    ? "linear-gradient(135deg, rgba(26,26,46,0.95), rgba(15,15,35,0.9))" 
+    : "linear-gradient(135deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85))";
+
+  const focusShadowColor = isDarkMode ? "rgba(30,58,138,0.3)" : "rgba(30,58,138,0.2)";
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh" }}>
@@ -72,9 +102,12 @@ export default function CustomerLayout() {
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" sx={{ color: "primary.main", fontWeight: 700, ml: 1 }}>
-            My Account
-          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <AccountBalanceIcon sx={{ fontSize: 24, color: "primary.main" }} />
+            <Typography variant="h6" sx={{ color: "primary.main", fontWeight: 700 }}>
+              My Accounts
+            </Typography>
+          </Box>
         </Toolbar>
       </AppBar>
 
@@ -136,13 +169,13 @@ export default function CustomerLayout() {
         <AppBar 
           position="sticky" 
           elevation={0} 
+          className="glass"
           sx={{ 
-            bgcolor: "background.paper", 
-            borderBottom: "1px solid", 
-            borderColor: "divider",
+            backdropFilter: "saturate(180%) blur(20px)",
+            backgroundImage: navbarBg,
           }}
         >
-          <Toolbar sx={{ gap: 2, px: { xs: 2, md: 3 } }}>
+          <Toolbar sx={{ gap: {xs: 1.5, sm: 2}, px: { xs: 1.5, sm: 2, md: 3 }, flexWrap: 'wrap', alignItems: {xs:'flex-start', sm:'center'} }}>
             {/* Search */}
             <Box 
               sx={{ 
@@ -150,10 +183,10 @@ export default function CustomerLayout() {
                 alignItems: "center", 
                 bgcolor: "background.default", 
                 borderRadius: 2, 
-                px: 2, 
+                px: {xs: 1.5, sm: 2, md: 2.5}, 
                 py: 0.5, 
                 flex: 1, 
-                maxWidth: 400,
+                maxWidth: {xs: '100%', md: 500},
                 border: "1px solid",
                 borderColor: "divider",
                 "&:hover": {
@@ -161,35 +194,55 @@ export default function CustomerLayout() {
                 },
                 "&:focus-within": {
                   borderColor: "primary.main",
-                  boxShadow: "0 0 0 2px rgba(25, 118, 210, 0.1)",
+                  boxShadow: `0 0 0 2px ${focusShadowColor}`,
                 },
               }}
             >
               <SearchIcon sx={{ color: "text.secondary", mr: 1 }} />
               <InputBase 
                 placeholder="Search transactions, accounts..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 sx={{ flex: 1, fontSize: "0.9rem" }} 
               />
+              {searchQuery && (
+                <IconButton
+                  size="small"
+                  onClick={() => setSearchQuery('')}
+                  sx={{ ml: 1 }}
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              )}
             </Box>
             <Box sx={{ flexGrow: 1 }} />
             {/* Notifications */}
-            <IconButton onClick={handleNotifMenuOpen}>
-              <Badge badgeContent={unreadCount} color="error">
-                <NotificationsIcon sx={{ color: "text.secondary" }} />
-              </Badge>
-            </IconButton>
+            <Tooltip title="Notifications" arrow>
+              <IconButton 
+                onClick={handleNotifMenuOpen}
+                aria-label={`Notifications, ${unreadCount} unread`}
+              >
+                <Badge badgeContent={unreadCount} color="error">
+                  <NotificationsIcon sx={{ color: "text.secondary" }} />
+                </Badge>
+              </IconButton>
+            </Tooltip>
+            {/* Professional Theme Toggle */}
+            <Tooltip title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"} arrow>
+              <IconButton 
+                onClick={toggleDarkMode}
+                color="inherit"
+                sx={{ ml: 1 }}
+                aria-label="toggle dark mode"
+              >
+                {isDarkMode ? <Brightness7Icon /> : <Brightness4Icon />}
+              </IconButton>
+            </Tooltip>
             {/* Notification Menu */}
             <Menu
               anchorEl={notifAnchor}
               open={Boolean(notifAnchor)}
               onClose={handleNotifMenuClose}
-              PaperProps={{
-                sx: {
-                  width: 360,
-                  maxHeight: 400,
-                  mt: 1,
-                },
-              }}
               transformOrigin={{ horizontal: "right", vertical: "top" }}
               anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
             >
@@ -201,12 +254,34 @@ export default function CustomerLayout() {
               <Divider />
               {notifications.length > 0 ? (
                 notifications.map((notif) => (
-                  <MenuItem key={notif.id} onClick={handleNotifMenuClose} sx={{ py: 1.5 }}>
-                    <Box>
-                      <Typography variant="body2" sx={{ fontWeight: notif.isRead ? 400 : 600 }}>
-                        {notif.title}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                  <MenuItem 
+                    key={notif.id} 
+                    onClick={() => handleNotificationClick(notif)}
+                    sx={{ 
+                      px: 3, 
+                      py: 2,
+                      borderRadius: 1,
+                      mx: 1,
+                      mb: 1,
+                      transition: "all 0.2s ease",
+                      "&:hover": { transform: "translateX(4px)" }
+                    }}
+                  >
+                    <Box sx={{ display: "flex", flexDirection: "column", width: "100%" }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+                        <Typography variant="subtitle2" sx={{ 
+                          fontWeight: 700,
+                          color: notif.isRead ? "text.primary" : "primary.main"
+                        }}>
+                          {notif.title}
+                        </Typography>
+                        {!notif.isRead && (
+                          <Box sx={{
+                            width: 8, height: 8, borderRadius: "50%", bgcolor: "error.main"
+                          }} />
+                        )}
+                      </Box>
+                      <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.4 }}>
                         {notif.message}
                       </Typography>
                     </Box>
@@ -220,7 +295,7 @@ export default function CustomerLayout() {
                 </MenuItem>
               )}
               <Divider />
-              <MenuItem sx={{ justifyContent: "center", py: 1.5 }} onClick={handleNotifMenuClose}>
+              <MenuItem sx={{ justifyContent: "center", py: 1.5 }} onClick={handleViewAll}>
                 <Typography variant="body2" color="primary" fontWeight={600}>
                   View All
                 </Typography>
@@ -271,4 +346,3 @@ export default function CustomerLayout() {
     </Box>
   );
 }
-

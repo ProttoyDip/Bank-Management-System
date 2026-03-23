@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Box,
   Typography,
@@ -37,11 +38,13 @@ import { Transaction, TransactionType, ApiResponse, UserRole } from "../../types
 
 export default function TransactionHistory() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
+  const tableRef = useRef<HTMLTableElement>(null);
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -52,15 +55,12 @@ export default function TransactionHistory() {
         let response;
         
         if (user?.role === UserRole.CUSTOMER && user.accounts && user.accounts.length > 0) {
-          // For customers, get transactions for their first account
           const accountId = user.accounts[0].id;
           response = await api.get<ApiResponse<Transaction[]>>(`/transactions/account/${accountId}`);
         } else {
-          // For admin/employee, get all transactions
           response = await api.get<ApiResponse<Transaction[]>>("/transactions");
         }
         
-        // Sort by date descending (newest first)
         const sortedTransactions = (response.data.data || []).sort(
           (a: Transaction, b: Transaction) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
@@ -77,7 +77,22 @@ export default function TransactionHistory() {
     fetchTransactions();
   }, [user]);
 
-  // Compute chart data from transactions (grouped by week)
+  useEffect(() => {
+    const txId = searchParams.get('txId');
+    if (txId && transactions.length > 0) {
+      const targetTx = transactions.find(t => t.id === parseInt(txId));
+      if (targetTx) {
+        setSearch(targetTx.referenceNumber || targetTx.description || '');
+        setTypeFilter(targetTx.type.toLowerCase().includes('deposit') ? 'deposit' : targetTx.type.toLowerCase().includes('withdraw') ? 'withdraw' : 'transfer');
+        setTimeout(() => {
+          if (tableRef.current) {
+            tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 500);
+      }
+    }
+  }, [transactions, searchParams]);
+
   const chartData = useMemo(() => {
     if (transactions.length === 0) return [];
 
@@ -86,7 +101,6 @@ export default function TransactionHistory() {
     
     const weeklyData: { [key: string]: { deposits: number; withdrawals: number } } = {};
     
-    // Initialize 4 weeks
     for (let i = 0; i < 4; i++) {
       weeklyData[`Week ${i + 1}`] = { deposits: 0, withdrawals: 0 };
     }
@@ -113,7 +127,6 @@ export default function TransactionHistory() {
     }));
   }, [transactions]);
 
-  // Compute summary stats from transactions
   const summaryStats = useMemo(() => {
     const totalDeposits = transactions
       .filter(t => t.type === TransactionType.DEPOSIT || t.type === TransactionType.TRANSFER_IN)
@@ -158,10 +171,12 @@ export default function TransactionHistory() {
   });
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-GB", {
+    return new Date(dateString).toLocaleString("en-GB", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
@@ -175,14 +190,14 @@ export default function TransactionHistory() {
 
   if (error) {
     return (
-      <Box sx={{ maxWidth: 1600, mx: "auto", p: 3 }}>
+      <Box sx={{ maxWidth: {xs: '100%', sm: 1200, lg: 1600}, mx: "auto", p: {xs: 2, sm: 3} }}>
         <Typography color="error" variant="h6">{error}</Typography>
       </Box>
     );
   }
 
   return (
-    <Box sx={{ maxWidth: 1600, mx: "auto" }}>
+    <Box sx={{ maxWidth: {xs: '100%', sm: 1200, lg: 1600}, mx: "auto", px: {xs: 1, sm: 2, lg: 0} }}>
       {/* Page Header */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>Transactions</Typography>
@@ -193,9 +208,9 @@ export default function TransactionHistory() {
 
       {/* Filters */}
       <Card sx={{ mb: 4, border: "1px solid", borderColor: "divider" }}>
-        <CardContent sx={{ p: 3 }}>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={6}>
+        <CardContent sx={{ p: {xs: 2, sm: 3} }}>
+          <Grid container spacing={2} alignItems="center" flexWrap="wrap">
+            <Grid item xs={12} sm={6} md={4}>
               <TextField
                 placeholder="Search transactions..."
                 fullWidth
@@ -211,7 +226,7 @@ export default function TransactionHistory() {
                 }}
               />
             </Grid>
-            <Grid item xs={12} md={3}>
+            <Grid item xs={12} sm={6} md={4}>
               <FormControl fullWidth size="small">
                 <InputLabel>Type</InputLabel>
                 <Select
@@ -232,7 +247,7 @@ export default function TransactionHistory() {
 
       {/* Chart and Summary */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} lg={8}>
+        <Grid item xs={12} lg={8} xl={9}>
           <Card
             component={motion.div}
             initial={{ opacity: 0, y: 20 }}
@@ -240,7 +255,7 @@ export default function TransactionHistory() {
             transition={{ duration: 0.3 }}
             sx={{ border: "1px solid", borderColor: "divider" }}
           >
-            <CardContent sx={{ p: 3 }}>
+            <CardContent sx={{ p: {xs: 2, sm: 3} }}>
               <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>Weekly Overview</Typography>
               <Box sx={{ height: 280 }}>
                 <ResponsiveContainer>
@@ -257,7 +272,7 @@ export default function TransactionHistory() {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} lg={4}>
+        <Grid item xs={12} lg={4} xl={3}>
           <Card
             component={motion.div}
             initial={{ opacity: 0, y: 20 }}
@@ -265,7 +280,7 @@ export default function TransactionHistory() {
             transition={{ duration: 0.3, delay: 0.1 }}
             sx={{ border: "1px solid", borderColor: "divider", height: "100%" }}
           >
-            <CardContent sx={{ p: 3 }}>
+            <CardContent sx={{ p: {xs: 2, sm: 3} }}>
               <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>Summary</Typography>
               <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -301,12 +316,12 @@ export default function TransactionHistory() {
       {/* Transactions Table */}
       <Card sx={{ border: "1px solid", borderColor: "divider" }}>
         <CardContent sx={{ p: 0 }}>
-          <Typography variant="h6" sx={{ p: 3, pb: 2, fontWeight: 600 }}>Transaction History</Typography>
-          <TableContainer>
-            <Table>
+          <Typography variant="h6" sx={{ p: {xs: 2, sm: 3}, pb: 2, fontWeight: 600 }}>Transaction History</Typography>
+          <TableContainer ref={tableRef} sx={{ overflowX: {xs: 'auto', md: 'visible'} }}>
+            <Table sx={{ minWidth: '100%' }}>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
+                  <TableCell sx={{ fontWeight: 600, px: {xs:0.5, sm:1.5, md:2.5, lg:3} }}>Date & Time</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Reference</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Description</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
@@ -315,13 +330,22 @@ export default function TransactionHistory() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredTransactions.map((transaction) => (
-                  <TableRow key={transaction.id} hover>
+                {filteredTransactions.map((transaction, index) => (
+                  <TableRow 
+                    key={transaction.id} 
+                    hover
+                    sx={{
+                      backgroundColor: search && (
+                        transaction.description?.toLowerCase().includes(search.toLowerCase()) ||
+                        transaction.referenceNumber?.toLowerCase().includes(search.toLowerCase())
+                      ) ? 'primary.50' : 'inherit',
+                    }}
+                  >
                     <TableCell>{formatDate(transaction.createdAt)}</TableCell>
-                    <TableCell sx={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
+                    <TableCell sx={{ fontFamily: "monospace", fontSize: {xs:'0.75rem', sm:'0.8rem', md:'0.85rem'} }}>
                       {transaction.referenceNumber}
                     </TableCell>
-                    <TableCell>{transaction.description}</TableCell>
+                    <TableCell sx={{ maxWidth: {xs: 120, sm: 200}, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{transaction.description}</TableCell>
                     <TableCell>
                       <Chip
                         label={formatType(transaction.type)}
@@ -360,4 +384,3 @@ export default function TransactionHistory() {
     </Box>
   );
 }
-

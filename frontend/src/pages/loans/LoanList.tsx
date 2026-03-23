@@ -183,7 +183,7 @@ export default function LoanList() {
   }
 
   return (
-    <Box sx={{ maxWidth: 1600, mx: "auto" }}>
+    <Box sx={{ maxWidth: {xs: '100%', sm: 1200, lg: 1600}, mx: "auto", px: {xs: 2, sm: 0} }}>
       {/* Page Header */}
       <Box
         sx={{
@@ -214,9 +214,9 @@ export default function LoanList() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0 }}
-            sx={{ border: "1px solid", borderColor: "divider" }}
+            sx={{ border: "1px solid", borderColor: "divider", height: "100%" }}
           >
-            <CardContent sx={{ p: 3 }}>
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontWeight: 500 }}>Total Loans</Typography>
               <Typography variant="h5" sx={{ fontWeight: 700 }}>{loans.length}</Typography>
             </CardContent>
@@ -228,9 +228,9 @@ export default function LoanList() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.1 }}
-            sx={{ border: "1px solid", borderColor: "divider" }}
+            sx={{ border: "1px solid", borderColor: "divider", height: "100%" }}
           >
-            <CardContent sx={{ p: 3 }}>
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontWeight: 500 }}>Total Disbursed</Typography>
               <Typography variant="h5" sx={{ fontWeight: 700 }}>৳{(totalDisbursed / 100000).toFixed(1)}L</Typography>
             </CardContent>
@@ -242,9 +242,9 @@ export default function LoanList() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.2 }}
-            sx={{ border: "1px solid", borderColor: "divider" }}
+            sx={{ border: "1px solid", borderColor: "divider", height: "100%" }}
           >
-            <CardContent sx={{ p: 3 }}>
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontWeight: 500 }}>Outstanding</Typography>
               <Typography variant="h5" sx={{ fontWeight: 700 }}>৳{(totalOutstanding / 100000).toFixed(1)}L</Typography>
             </CardContent>
@@ -256,9 +256,9 @@ export default function LoanList() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.3 }}
-            sx={{ border: "1px solid", borderColor: "divider" }}
+            sx={{ border: "1px solid", borderColor: "divider", height: "100%" }}
           >
-            <CardContent sx={{ p: 3 }}>
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontWeight: 500 }}>Active Loans</Typography>
               <Typography variant="h5" sx={{ fontWeight: 700 }}>
                 {loans.filter(l => l.status === LoanStatus.ACTIVE).length}
@@ -272,7 +272,7 @@ export default function LoanList() {
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} lg={8}>
           <Card sx={{ border: "1px solid", borderColor: "divider" }}>
-            <CardContent sx={{ p: 3 }}>
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>Loan Applications</Typography>
               <Box sx={{ height: 280 }}>
                 <ResponsiveContainer>
@@ -291,7 +291,7 @@ export default function LoanList() {
         </Grid>
         <Grid item xs={12} lg={4}>
           <Card sx={{ border: "1px solid", borderColor: "divider", height: "100%" }}>
-            <CardContent sx={{ p: 3 }}>
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>Loan Types</Typography>
               <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 {Object.values(LoanType).map((type) => {
@@ -312,7 +312,7 @@ export default function LoanList() {
       {/* Loans Table */}
       <Card sx={{ border: "1px solid", borderColor: "divider" }}>
         <CardContent sx={{ p: 0 }}>
-          <Typography variant="h6" sx={{ p: 3, pb: 2, fontWeight: 600 }}>Loan Details</Typography>
+          <Typography variant="h6" sx={{ p: { xs: 2, sm: 3 }, pb: 2, fontWeight: 600 }}>Loan Details</Typography>
           <TableContainer>
             <Table>
               <TableHead>
@@ -349,7 +349,7 @@ export default function LoanList() {
       {/* New Loan Dialog */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontWeight: 600 }}>Apply for New Loan</DialogTitle>
-        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: "16px !important" }}>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: {xs: 2, sm: 2.5}, pt: "16px !important", px: {xs: 2, md: 3} }}>
           {/* Only show customer selection for admin/employee, not for customers */}
           {user?.role !== UserRole.CUSTOMER && (
             <TextField
@@ -425,4 +425,3 @@ export default function LoanList() {
     </Box>
   );
 }
-

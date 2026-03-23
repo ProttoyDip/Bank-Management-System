@@ -23,8 +23,8 @@ import api from "../services/api";
 import { ApiResponse, User } from "../types";
 
 export default function Settings() {
-  const { user: authUser } = useAuth();
-  const [snack, setSnack] = useState({ open: false, message: "" });
+  const { user: authUser, login } = useAuth();
+  const [snack, setSnack] = useState<{ open: boolean; message: string; severity?: "success" | "error" }>({ open: false, message: "", severity: "success" });
   const [profile, setProfile] = useState({
     name: "",
     email: "",
@@ -61,8 +61,134 @@ export default function Settings() {
     marketing: false,
   });
 
-  const handleSave = () => {
-    setSnack({ open: true, message: "Settings saved successfully!" });
+  const [loading, setLoading] = useState(false);
+
+  // Load notifications preferences from localStorage on mount/update
+  useEffect(() => {
+    if (authUser?.id) {
+      try {
+        const savedPrefs = localStorage.getItem(`notification_prefs_${authUser.id}`);
+        if (savedPrefs) {
+          setNotifications(JSON.parse(savedPrefs));
+        }
+      } catch (e) {
+        console.warn("Failed to load notification prefs:", e);
+      }
+    }
+  }, [authUser?.id]);
+
+  const handleSaveProfile = async () => {
+    // Validation
+    if (!profile.name.trim()) {
+      setSnack({ open: true, message: "Name is required", severity: "error" });
+      return;
+    }
+    
+    if (!authUser?.id) {
+      setSnack({ open: true, message: "User not authenticated", severity: "error" });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await api.put(`/users/${authUser.id}`, {
+        name: profile.name.trim(),
+        phone: profile.phone.trim() || null,
+        address: profile.address.trim() || null,
+      });
+
+      const updatedData = response.data.data || {};
+      
+      // Update local profile safely
+      setProfile({
+        name: updatedData.name || profile.name,
+        email: profile.email,
+        phone: updatedData.phone || profile.phone || "",
+        address: updatedData.address || profile.address || "",
+      });
+
+      // Sync with AuthContext only if name changed
+      if (updatedData.name && updatedData.name !== authUser.name) {
+        const token = localStorage.getItem("token") || "";
+        login({
+          ...authUser,
+          name: updatedData.name
+        }, token);
+      }
+
+      setSnack({ open: true, message: "Profile updated successfully!", severity: "success" });
+    } catch (error: any) {
+      console.error("Profile save error:", error);
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || "Failed to save profile changes";
+      setSnack({ open: true, message: errorMsg, severity: "error" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveNotifications = () => {
+    try {
+      if (authUser?.id) {
+        localStorage.setItem(`notification_prefs_${authUser.id}`, JSON.stringify(notifications));
+      }
+      setSnack({ open: true, message: "Notification preferences saved!", severity: "success" });
+    } catch (error) {
+      setSnack({ open: true, message: "Failed to save preferences", severity: "error" });
+    }
+  };
+
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+
+
+  const handleSaveSecurity = async () => {
+    setLoading(true);
+
+    // Handle password change
+    if (currentPassword && newPassword && confirmPassword) {
+      // Validate confirm matches new
+      if (newPassword !== confirmPassword) {
+        setSnack({ open: true, message: "New passwords do not match!", severity: "error" });
+        setLoading(false);
+        return;
+      }
+
+      // Validate length
+      if (newPassword.length < 6) {
+        setSnack({ open: true, message: "New password must be at least 6 characters", severity: "error" });
+        setLoading(false);
+        return;
+      }
+
+      try {
+        console.log('Changing password for user:', authUser?.id);
+        await api.post("/users/change-password-auth", {
+          currentPassword,
+          newPassword
+        });
+        console.log('Password change success');
+
+        // Clear all fields
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+
+        setSnack({ 
+          open: true, 
+          message: "Password changed successfully! Please logout and login with new password.", 
+          severity: "success" 
+        });
+      } catch (error: any) {
+        console.error("Password change error:", error.response?.data || error);
+        const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || "Failed to change password";
+        setSnack({ open: true, message: errorMsg, severity: "error" });
+      }
+    } else {
+      setSnack({ open: true, message: "Please fill all password fields", severity: "error" });
+    }
+
+    setLoading(false);
   };
 
   return (
@@ -110,8 +236,8 @@ export default function Settings() {
                 <TextField
                   label="Email"
                   fullWidth
+                  disabled
                   value={profile.email}
-                  onChange={(e) => setProfile({ ...profile, email: e.target.value })}
                 />
                 <TextField
                   label="Phone"
@@ -129,8 +255,13 @@ export default function Settings() {
                 />
               </Box>
 
-              <Button variant="contained" sx={{ mt: 3, fontWeight: 600 }} onClick={handleSave}>
-                Save Changes
+              <Button 
+                variant="contained" 
+                sx={{ mt: 3, fontWeight: 600 }} 
+                onClick={handleSaveProfile}
+                disabled={loading}
+              >
+                {loading ? "Saving..." : "Save Changes"}
               </Button>
             </CardContent>
           </Card>
@@ -156,29 +287,35 @@ export default function Settings() {
                   label="Current Password"
                   type="password"
                   fullWidth
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Enter current password"
                 />
                 <TextField
                   label="New Password"
                   type="password"
                   fullWidth
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password (min 6 chars)"
                 />
-                <TextField
+              <TextField
                   label="Confirm New Password"
                   type="password"
                   fullWidth
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm new password"
                 />
               </Box>
 
-              <Divider sx={{ my: 3 }} />
-
-              <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>Two-Factor Authentication</Typography>
-              <FormControlLabel
-                control={<Switch />}
-                label="Enable 2FA"
-              />
-
-              <Button variant="contained" sx={{ mt: 3, fontWeight: 600 }} onClick={handleSave}>
-                Update Password
+              <Button 
+                variant="contained" 
+                sx={{ mt: 3, fontWeight: 600 }} 
+                onClick={handleSaveSecurity}
+              disabled={loading}
+              >
+"Change Password"
               </Button>
             </CardContent>
           </Card>
@@ -236,7 +373,7 @@ export default function Settings() {
                 </Grid>
               </Grid>
 
-              <Button variant="contained" sx={{ mt: 3, fontWeight: 600 }} onClick={handleSave}>
+              <Button variant="contained" sx={{ mt: 3, fontWeight: 600 }} onClick={handleSaveNotifications}>
                 Save Preferences
               </Button>
             </CardContent>
@@ -246,10 +383,10 @@ export default function Settings() {
 
       <Snackbar
         open={snack.open}
-        autoHideDuration={3000}
+        autoHideDuration={4000}
         onClose={() => setSnack({ ...snack, open: false })}
       >
-        <Alert severity="success" variant="filled">
+        <Alert severity={snack.severity || "success"} variant="filled" onClose={() => setSnack({ ...snack, open: false })}>
           {snack.message}
         </Alert>
       </Snackbar>

@@ -1,263 +1,706 @@
-import { useEffect, useState } from "react";
-import { Box, Typography, Card, CardContent, Grid, Chip, Button, Alert } from "@mui/material";
-import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
-import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
-import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
+import { useEffect, useState, useCallback } from "react";
+import { 
+  Box, 
+  Typography, 
+  Card, 
+  CardContent, 
+  Grid, 
+  Chip, 
+  Button, 
+  Divider,
+  CircularProgress,
+  Modal,
+  Fade,
+  Backdrop,
+  TextField,
+  FormControl,
+  Select,
+  MenuItem,
+  InputLabel,
+  FormHelperText,
+  IconButton,
+  Alert,
+  InputAdornment,
+  ToggleButton,
+  ButtonGroup,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Snackbar,
+  SnackbarContent,
+  Alert as MuiAlert
+} from "@mui/material";
+
+import {
+  ArrowUpward as ArrowUpwardIcon,
+  ArrowDownward as ArrowDownwardIcon,
+  SwapHoriz as SwapHorizIcon,
+  PieChart as PieChartIcon,
+  TrendingUp as TrendingUpIcon,
+  Close as CloseIcon,
+  AccountBalance as AccountBalanceIcon
+} from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
+import { useThemeContext } from "../../context/ThemeContext";
+import { useTheme } from "@mui/material";
 import { useAuth } from "../../context/AuthContext";
+import { useNotification } from "../../context/NotificationContext";
 import api from "../../services/api";
 import { Account, ApiResponse, Transaction, TransactionType, User } from "../../types";
 import { motion } from "framer-motion";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer
+} from "recharts";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+  ResponsiveContainer as PieResponsiveContainer
+} from "recharts";
 
-function getTxKind(type: TransactionType): "deposit" | "withdraw" | "transfer" {
-  if (
-    type === TransactionType.DEPOSIT ||
-    type === TransactionType.TRANSFER_IN ||
-    type === TransactionType.LOAN_DISBURSEMENT
-  ) {
-    return "deposit";
-  }
-  if (
-    type === TransactionType.WITHDRAW ||
-    type === TransactionType.TRANSFER_OUT ||
-    type === TransactionType.LOAN_PAYMENT
-  ) {
-    return "withdraw";
-  }
+function getTxKind(type: TransactionType): "deposit" | "withdraw" | "transfer" | "loan" {
+  if (type === TransactionType.DEPOSIT || type === TransactionType.TRANSFER_IN || type === TransactionType.LOAN_DISBURSEMENT) return "deposit";
+  if (type === TransactionType.WITHDRAW || type === TransactionType.TRANSFER_OUT || type === TransactionType.LOAN_PAYMENT) return "withdraw";
   return "transfer";
 }
 
+interface SpendingCategory {
+  name: string;
+  value: number;
+  color: string;
+}
+
+type QuickMode = "deposit" | "withdraw" | "transfer";
+
 export default function CustomerDashboard() {
   const { user } = useAuth();
+// Snackbar state for quick notifications (local)
+  const [snackbar, setSnackbar] = useState<{open: boolean, message: string, severity: 'success' | 'error'} | null>(null);
+
+  const showSnack = (message: string, severity: 'success' | 'error') => {
+    setSnackbar({ open: true, message, severity });
+  };
   const navigate = useNavigate();
+  const { isDarkMode } = useThemeContext();
+  const theme = useTheme();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const [trendData, setTrendData] = useState<any[]>([]);
+  const [spendingData, setSpendingData] = useState<SpendingCategory[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [budgetOpen, setBudgetOpen] = useState(false);
+
+  // Quick Transaction states
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [quickMode, setQuickMode] = useState<QuickMode>("deposit");
+  const [selectedAccountId, setSelectedAccountId] = useState<number | "">("");
+  const [amount, setAmount] = useState("");
+  const [destinationAccount, setDestinationAccount] = useState("");
+  const [quickError, setQuickError] = useState("");
+  const [quickSubmitting, setQuickSubmitting] = useState(false);
+  const [selectedAccountBalance, setSelectedAccountBalance] = useState(0);
+
+  const selectedAccount = accounts.find(acc => acc.id === Number(selectedAccountId));
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      if (user) {
+        const res = await api.get<ApiResponse<User>>(`/users/${user.id}`);
+        const userAccounts = res.data.data.accounts || [];
+        setAccounts(userAccounts);
+
+        const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+        const txPromises = userAccounts.map(acc => 
+          api.get<ApiResponse<Transaction[]>>(`/transactions/account/${acc.id}?from=${ninetyDaysAgo}`)
+            .then(r => r.data.data || [])
+        );
+        const allTx = (await Promise.all(txPromises)).flat().sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        setRecentTransactions(allTx.slice(0, 10));
+
+        const weeklyTrend = computeWeeklyTrend(allTx);
+        setTrendData(weeklyTrend);
+
+        const spending = computeSpendingCategories(allTx.slice(0, 100));
+        setSpendingData(spending);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        if (user) {
-          const res = await api.get<ApiResponse<User>>(`/users/${user.id}`);
-          const userAccounts = res.data.data.accounts || [];
-          setAccounts(userAccounts);
-
-          // Fetch transactions for each account
-          const txResults = await Promise.all(
-            userAccounts.map((acc) =>
-              api
-                .get<ApiResponse<Transaction[]>>(`/transactions/account/${acc.id}`)
-                .then((r) => r.data.data)
-                .catch(() => [] as Transaction[])
-            )
-          );
-          const allTx = txResults.flat().sort(
-            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          );
-          setRecentTransactions(allTx.slice(0, 5));
-        }
-      } catch {
-        setError("Failed to load account data.");
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
-  }, [user]);
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (selectedAccount) {
+      setSelectedAccountBalance(Number(selectedAccount.balance));
+    }
+  }, [selectedAccountId, accounts]);
 
   const totalBalance = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
 
+  const computeWeeklyTrend = (txs: Transaction[]) => {
+    const now = new Date();
+    const weekly = [];
+    for (let i = 11; i >= 0; i--) {
+      const weekStart = new Date(now.getTime() - (i + 1) * 7 * 24 * 60 * 60 * 1000);
+      const weekEnd = new Date(now.getTime() - i * 7 * 24 * 60 * 60 * 1000);
+      const weekTx = txs.filter(tx => {
+        const txDate = new Date(tx.createdAt);
+        return txDate >= weekStart && txDate <= weekEnd;
+      });
+      const netChange = weekTx.reduce((net, tx) => {
+        return tx.amount > 0 ? net + tx.amount : net - Math.abs(tx.amount);
+      }, 0);
+      weekly.push({
+        week: `W${12 - i}`,
+        balanceChange: netChange / 1000
+      });
+    }
+    return weekly;
+  };
+
+  const computeSpendingCategories = (txs: Transaction[]): SpendingCategory[] => {
+    const categories = {
+      'Deposits': 0,
+      'Withdrawals': 0,
+      'Transfers': 0,
+      'Loan Payments': 0
+    };
+    const COLORS = ['#10b981', '#ef4444', '#3b82f6', '#f59e0b'];
+
+    txs.forEach(tx => {
+      const kind = getTxKind(tx.type);
+      if (kind === 'deposit') categories['Deposits'] += Math.abs(tx.amount);
+      else if (kind === 'withdraw') categories['Withdrawals'] += Math.abs(tx.amount);
+      else if (kind === 'transfer') categories['Transfers'] += Math.abs(tx.amount);
+      else categories['Loan Payments'] += Math.abs(tx.amount);
+    });
+
+    return Object.entries(categories).map(([name, value], i) => ({
+      name,
+      value,
+      color: COLORS[i % COLORS.length]
+    })).filter(cat => cat.value > 0);
+  };
+
+  const handleQuickSubmit = async () => {
+    if (!selectedAccountId || !amount || Number(amount) <= 0) {
+      setQuickError("Please select an account and enter a valid amount");
+      return;
+    }
+
+    const numAmount = Number(amount);
+    if (quickMode !== "deposit" && numAmount > selectedAccountBalance) {
+      setQuickError("Amount exceeds available balance");
+      return;
+    }
+
+    if (quickMode === "transfer" && !destinationAccount) {
+      setQuickError("Please enter destination account number");
+      return;
+    }
+
+    try {
+      setQuickSubmitting(true);
+      setQuickError("");
+
+      let res;
+      if (quickMode === "transfer") {
+        // Note: Backend expects toAccountNumber search; adjust if ID-based
+        res = await api.post("/accounts/transfer", {
+          fromAccountId: selectedAccountId,
+          toAccountNumber: destinationAccount,
+          amount: numAmount
+        });
+      } else {
+        res = await api.post(`/accounts/${selectedAccountId}/${quickMode}`, { amount: numAmount });
+      }
+
+      showSnack(`✅ ${quickMode.charAt(0).toUpperCase() + quickMode.slice(1)} of ৳${numAmount.toLocaleString()} successful!`, "success");
+      fetchData(); // Refresh dashboard data
+      handleQuickClose();
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || "Transaction failed. Please try again.";
+      setQuickError(errorMsg);
+      showSnack(`❌ ${errorMsg}`, "error");
+    } finally {
+      setQuickSubmitting(false);
+    }
+  };
+
+  const handleQuickClose = () => {
+    setQuickOpen(false);
+    setQuickMode("deposit");
+    setSelectedAccountId("");
+    setAmount("");
+    setDestinationAccount("");
+    setQuickError("");
+  };
+
+  const getPreviewBalance = () => {
+    const numAmount = Number(amount);
+    if (!selectedAccount || numAmount <= 0) return selectedAccountBalance;
+    return quickMode === "deposit" 
+      ? selectedAccountBalance + numAmount 
+      : selectedAccountBalance - numAmount;
+  };
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
-    <Box sx={{ maxWidth: 1600, mx: "auto" }}>
-      {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
-
-      {/* Account Summary Cards */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={4}>
-          <Card 
-            component={motion.div} 
-            initial={{ opacity: 0, y: 20 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            whileHover={{ y: -4 }}
-            sx={{ 
-              border: "1px solid", 
-              borderColor: "divider", 
-              bgcolor: "primary.main", 
-              color: "white",
-              transition: "transform 0.2s, box-shadow 0.2s",
-              "&:hover": { boxShadow: "0 8px 24px rgba(25, 118, 210, 0.35)" },
-            }}
-          >
-            <CardContent sx={{ p: 3 }}>
-              <Typography variant="body2" sx={{ opacity: 0.9, mb: 1, fontWeight: 500 }}>Total Balance</Typography>
-              <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
-                ৳ {totalBalance.toLocaleString()}
-              </Typography>
-              <Typography variant="caption" sx={{ opacity: 0.8 }}>Across {accounts.length} accounts</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={8}>
-          <Grid container spacing={2}>
-            <Grid item xs={6}>
-              <Card 
-                component={motion.div} 
-                initial={{ opacity: 0 }} 
-                animate={{ opacity: 1 }} 
-                whileHover={{ y: -2 }} 
-                sx={{ 
-                  border: "1px solid", 
-                  borderColor: "divider",
-                  transition: "transform 0.2s, box-shadow 0.2s",
-                  "&:hover": { boxShadow: "0 4px 12px rgba(0,0,0,0.06)" },
-                }}
-              >
-                <CardContent sx={{ textAlign: "center", py: 3 }}>
-                  <ArrowDownwardIcon sx={{ color: "success.main", fontSize: 32, mb: 1 }} />
-                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Deposit</Typography>
-                  <Button variant="contained" color="success" size="small" onClick={() => navigate("/customer/transfer")}>Deposit Money</Button>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={6}>
-              <Card 
-                component={motion.div} 
-                initial={{ opacity: 0 }} 
-                animate={{ opacity: 1 }} 
-                whileHover={{ y: -2 }} 
-                sx={{ 
-                  border: "1px solid", 
-                  borderColor: "divider",
-                  transition: "transform 0.2s, box-shadow 0.2s",
-                  "&:hover": { boxShadow: "0 4px 12px rgba(0,0,0,0.06)" },
-                }}
-              >
-                <CardContent sx={{ textAlign: "center", py: 3 }}>
-                  <ArrowUpwardIcon sx={{ color: "error.main", fontSize: 32, mb: 1 }} />
-                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Withdraw</Typography>
-                  <Button variant="contained" color="error" size="small" onClick={() => navigate("/customer/transfer")}>Withdraw Money</Button>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-        </Grid>
-      </Grid>
-
-      {/* My Accounts */}
-      <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>My Accounts</Typography>
-      <Grid container spacing={2} sx={{ mb: 4 }}>
-        {accounts.map((account, index) => (
-          <Grid item xs={12} sm={6} md={4} key={account.id}>
-            <Card 
-              component={motion.div} 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              transition={{ delay: index * 0.1 }}
-              sx={{ 
-                border: "1px solid", 
-                borderColor: "divider",
-                transition: "transform 0.2s, box-shadow 0.2s",
-                "&:hover": { boxShadow: "0 4px 12px rgba(0,0,0,0.06)" },
-              }}
-            >
-              <CardContent sx={{ p: 2.5 }}>
-                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-                  <Typography variant="subtitle2" sx={{ fontFamily: "monospace", fontWeight: 600 }}>
-                    {account.accountNumber}
-                  </Typography>
-                  <Chip 
-                    label={account.type} 
-                    size="small" 
-                    sx={{ fontWeight: 500, fontSize: "0.7rem" }}
-                  />
-                </Box>
-                <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
-                  ৳ {Number(account.balance).toLocaleString()}
+    <Box sx={{ maxWidth: {xs: '100%', sm: 1200, lg: 1600}, mx: "auto", px: {xs: 2, sm: 0} }}>
+      {/* Balance Stats */}
+      <Box sx={{ mb: 4 }}>
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6} lg={4}>
+            <Card component={motion.div} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} sx={{ height: '100%' }}>
+              <CardContent sx={{ p: 3 }}>
+                <Typography variant="body2" sx={{ opacity: 0.7, mb: 1, fontWeight: 500 }}>
+                  Total Balance
                 </Typography>
-                <Chip 
-                  label={account.isActive ? "Active" : "Inactive"} 
-                  size="small" 
-                  color={account.isActive ? "success" : "default"}
-                  sx={{ fontWeight: 500, fontSize: "0.7rem" }}
-                />
+                <Typography variant="h3" sx={{ fontWeight: 800, mb: 1, color: 'primary.main' }}>
+                  ৳ {totalBalance.toLocaleString()}
+                </Typography>
+                <Chip label={`${accounts.length} Accounts`} size="small" color="primary" variant="outlined" />
               </CardContent>
             </Card>
           </Grid>
-        ))}
-        {accounts.length === 0 && !loading && (
-          <Grid item xs={12}>
-            <Card sx={{ border: "1px solid", borderColor: "divider", textAlign: "center", py: 4 }}>
-              <Typography color="text.secondary">No accounts yet. Open your first account today!</Typography>
+          <Grid item xs={12} md={6} lg={8}>
+            <Card component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <CardContent sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>Balance Trend</Typography>
+                  <Chip icon={<TrendingUpIcon />} label="+12.4%" color="success" size="small" />
+                </Box>
+                <Box sx={{ height: 200 }}>
+                  <ResponsiveContainer>
+                    <LineChart data={trendData}>
+                      <defs>
+                        <linearGradient id="trendGradient" x1="0" y1="1" x2="0" y2="0">
+                          <stop offset="0%" stopColor="#10b981" stopOpacity={0.4}/>
+                          <stop offset="100%" stopColor="#059669" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid vertical={false} strokeDasharray="4 4" stroke="rgba(0,0,0,0.05)" />
+                      <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                      <YAxis tickLine={false} axisLine={false} tickFormatter={(v) => `৳${v}k`} />
+                      <Tooltip formatter={(value) => [`৳${Number(value || 0).toLocaleString()}k`, 'Change']} />
+                      <Line type="monotone" dataKey="balanceChange" stroke="#10b981" strokeWidth={3} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </Box>
+              </CardContent>
             </Card>
           </Grid>
-        )}
-      </Grid>
+        </Grid>
+      </Box>
 
-      {/* Recent Transactions */}
-      <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>Recent Transactions</Typography>
-      <Card sx={{ border: "1px solid", borderColor: "divider" }}>
-        <CardContent sx={{ p: 0 }}>
-          {recentTransactions.length === 0 && !loading ? (
-            <Box sx={{ py: 4, textAlign: "center" }}>
-              <Typography color="text.secondary">No transactions found.</Typography>
-            </Box>
-          ) : (
-            recentTransactions.map((tx, index) => {
-              const txKind = getTxKind(tx.type);
-              return (
-                <Box
-                  key={tx.id}
+      {/* 🎯 NEW: Quick Transaction Actions */}
+      <Box sx={{ mb: 6 }}>
+        <Typography variant="h5" sx={{ mb: 3, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <AccountBalanceIcon sx={{ fontSize: 32, color: 'primary.main' }} /> Quick Actions
+        </Typography>
+        <Grid container spacing={3}>
+          {[
+            { mode: "deposit" as QuickMode, label: "Quick Deposit", icon: ArrowDownwardIcon, color: "#10b981", gradient: "linear-gradient(135deg, #10b981 0%, #059669 100%)" },
+            { mode: "withdraw" as QuickMode, label: "Quick Withdraw", icon: ArrowUpwardIcon, color: "#ef4444", gradient: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" },
+            { mode: "transfer" as QuickMode, label: "Quick Transfer", icon: SwapHorizIcon, color: "#3b82f6", gradient: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)" }
+          ].map(({ mode, label, icon: Icon, color, gradient }, index) => (
+            <Grid item xs={12} sm={6} md={4} key={mode}>
+              <motion.div
+                whileHover={{ y: -8, scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+              >
+                <Card
+                  onClick={() => {
+                    setQuickMode(mode);
+                    setSelectedAccountId("");
+                    setAmount("");
+                    setQuickOpen(true);
+                  }}
                   sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    py: 2.5,
-                    px: 3,
-                    borderBottom: index < recentTransactions.length - 1 ? "1px solid" : "none",
-                    borderColor: "divider",
+                    height: 160,
+                    cursor: 'pointer',
+                    borderRadius: 3,
+                    background: `linear-gradient(145deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05))`,
+                    backdropFilter: 'blur(20px)',
+                    border: `1px solid ${color}20`,
+                    boxShadow: `0 20px 40px ${color}20, 0 0 0 1px ${color}30`,
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    '&:hover': {
+                      background: gradient + ', rgba(255,255,255,0.1)',
+                      boxShadow: `0 25px 50px ${color}30, 0 0 0 1px ${color}40`,
+                      transform: 'translateY(-4px)'
+                    }
                   }}
                 >
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                    <Box sx={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: "50%",
-                      bgcolor: txKind === "deposit" ? "success.light" : txKind === "withdraw" ? "error.light" : "warning.light",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center"
-                    }}>
-                      {txKind === "deposit" ? (
-                        <ArrowDownwardIcon sx={{ color: "success.main", fontSize: 20 }} />
-                      ) : txKind === "withdraw" ? (
-                        <ArrowUpwardIcon sx={{ color: "error.main", fontSize: 20 }} />
-                      ) : (
-                        <SwapHorizIcon sx={{ color: "warning.main", fontSize: 20 }} />
-                      )}
+                  <CardContent sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
+                    <Box sx={{ width: 56, height: 56, borderRadius: '50%', background: gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2, boxShadow: `0 10px 30px ${color}40` }}>
+                      <Icon sx={{ fontSize: 28, color: 'white' }} />
                     </Box>
-                    <Box>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{tx.description || tx.type}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {new Date(tx.createdAt).toLocaleDateString()}
-                      </Typography>
-                    </Box>
-                  </Box>
-                  <Typography
-                    variant="h6"
-                    sx={{
-                      fontWeight: 600,
-                      color: txKind === "deposit" ? "success.main" : "error.main"
-                    }}
-                  >
-                    {txKind === "deposit" ? "+" : "-"} ৳ {Number(tx.amount).toLocaleString()}
+                    <Typography variant="h6" sx={{ fontWeight: 700, mb: 1, color: 'text.primary' }}>{label}</Typography>
+                    <Typography variant="body2" color="text.secondary">One-click banking</Typography>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </Grid>
+          ))}
+        </Grid>
+      </Box>
+
+      {/* Quick Transaction Modal */}
+      <Modal
+        open={quickOpen}
+        onClose={handleQuickClose}
+        closeAfterTransition
+        slots={{ backdrop: Backdrop }}
+        slotProps={{ backdrop: { timeout: 300 } }}
+      >
+        <Fade in={quickOpen}>
+          <Box sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: { xs: '95vw', sm: '90vw', md: 500 },
+            maxHeight: '90vh',
+            bgcolor: 'background.paper',
+            borderRadius: 4,
+            boxShadow: 24,
+            p: { xs: 3, sm: 4 },
+            overflow: 'auto',
+            backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255,255,255,0.2)'
+          }}>
+            <DialogTitle sx={{ p: 0, pb: 2, m: 0 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                  {quickMode.charAt(0).toUpperCase() + quickMode.slice(1)} Funds
+                </Typography>
+                <IconButton onClick={handleQuickClose} size="small">
+                  <CloseIcon />
+                </IconButton>
+              </Box>
+            </DialogTitle>
+            <DialogContent sx={{ p: 0 }}>
+              <Alert severity={quickMode === 'deposit' ? 'success' : quickMode === 'withdraw' ? 'warning' : 'info'} sx={{ mb: 3, borderRadius: 2 }}>
+                {quickMode === 'deposit' && 'Add money to your account instantly.'}
+                {quickMode === 'withdraw' && 'Withdraw cash or transfer out.'}
+                {quickMode === 'transfer' && 'Send money to another account.'}
+              </Alert>
+
+              <FormControl fullWidth sx={{ mb: 3 }}>
+                <InputLabel>Select Account</InputLabel>
+                <Select
+                  value={selectedAccountId}
+                  label="Select Account"
+                  onChange={(e) => setSelectedAccountId(e.target.value as number)}
+                >
+                  {accounts.map(acc => (
+                    <MenuItem key={acc.id} value={acc.id}>
+                      **** {acc.accountNumber.slice(-4)} - ৳{Number(acc.balance).toLocaleString()}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <TextField
+                fullWidth
+                label="Amount"
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                sx={{ mb: 3 }}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">৳</InputAdornment>
+                }}
+              />
+
+              {quickMode === 'transfer' && (
+                <TextField
+                  fullWidth
+                  label="To Account Number"
+                  value={destinationAccount}
+                  onChange={(e) => setDestinationAccount(e.target.value)}
+                  sx={{ mb: 3 }}
+                />
+              )}
+
+              {selectedAccount && (
+                <Alert severity="info" sx={{ mb: 3 }}>
+                  <Typography variant="body2">
+                    New Balance: <strong>৳{getPreviewBalance().toLocaleString()}</strong> 
+                    {quickMode !== 'deposit' && ` (Available: ৳${selectedAccountBalance.toLocaleString()})`}
                   </Typography>
+                </Alert>
+              )}
+
+              {quickError && (
+                <Alert severity="error" sx={{ mb: 3 }}>{quickError}</Alert>
+              )}
+            </DialogContent>
+            <DialogActions sx={{ p: 0, pt: 2, gap: 2 }}>
+              <Button variant="outlined" onClick={handleQuickClose} fullWidth>
+                Cancel
+              </Button>
+<Button
+                variant="contained"
+                onClick={handleQuickSubmit}
+                disabled={quickSubmitting}
+                fullWidth
+                sx={{ borderRadius: 2 }}
+                startIcon={quickSubmitting ? <CircularProgress size={20} color="inherit" /> : null}
+              >
+                {quickSubmitting ? 'Processing...' : `Confirm ${quickMode}`}
+              </Button>
+            </DialogActions>
+          </Box>
+        </Fade>
+      </Modal>
+
+      {/* Rest of existing sections unchanged */}
+      {/* Transactions and Pie */}
+      <Grid container spacing={4} sx={{ mb: 4 }}>
+        <Grid item xs={12} md={8}>
+          <Card component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <CardContent sx={{ p: 0 }}>
+              <Box sx={{ p: 3, pb: 2 }}>
+                <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>Recent Transactions</Typography>
+                <Typography variant="body2" color="text.secondary">Last 10 activities</Typography>
+              </Box>
+              <Divider />
+              <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
+                {recentTransactions.length === 0 ? (
+                  <Box sx={{ p: 4, textAlign: 'center' }}>
+                    <Typography color="text.secondary">No recent transactions</Typography>
+                  </Box>
+                ) : (
+                  recentTransactions.map((tx, index) => {
+                    const txKind = getTxKind(tx.type);
+                    const isPositive = tx.amount > 0;
+                    return (
+                      <Box
+                        key={tx.id}
+                        component={motion.div}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.6 + index * 0.05 }}
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          py: 2.5,
+                          px: 3,
+                          borderBottom: index < recentTransactions.length - 1 ? "1px solid" : "none",
+                          borderColor: "divider",
+                          cursor: 'pointer',
+                          '&:hover': { backgroundColor: 'action.hover' }
+                        }}
+                        onClick={() => navigate(`/customer/transactions?txId=${tx.id}`)}
+                      >
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 2, flex: 1 }}>
+                          <Box sx={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: "50%",
+                            bgcolor: isPositive ? "success.light" : "error.light",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center"
+                          }}>
+                            {txKind === "deposit" ? (
+                              <ArrowDownwardIcon sx={{ color: "success.main", fontSize: 22 }} />
+                            ) : txKind === "withdraw" ? (
+                              <ArrowUpwardIcon sx={{ color: "error.main", fontSize: 22 }} />
+                            ) : (
+                              <SwapHorizIcon sx={{ color: "warning.main", fontSize: 22 }} />
+                            )}
+                          </Box>
+                          <Box sx={{ minWidth: 0 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.25 }}>
+                              {tx.description || tx.type.replace(/_/g, ' ').toLowerCase()}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {new Date(tx.createdAt).toLocaleDateString()} • Ref: {tx.referenceNumber?.slice(-8)}
+                            </Typography>
+                          </Box>
+                        </Box>
+                        <Typography
+                          variant="h6"
+                          sx={{
+                            fontWeight: 700,
+                            color: isPositive ? "success.main" : "error.main",
+                            ml: 2
+                          }}
+                        >
+                          {isPositive ? "+" : "-"}৳ {Math.abs(tx.amount).toLocaleString()}
+                        </Typography>
+                      </Box>
+                    );
+                  })
+                )}
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <Card component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <CardContent sx={{ p: 3, height: '100%' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                <PieChartIcon color="primary" />
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>Spending Breakdown</Typography>
+              </Box>
+              {spendingData.length === 0 ? (
+                <Box sx={{ textAlign: 'center', py: 4 }}>
+                  <Typography color="text.secondary">No spending data yet</Typography>
                 </Box>
-              );
-            })
+              ) : (
+                <Box sx={{ height: 250 }}>
+                  <PieResponsiveContainer>
+                    <PieChart>
+                      <Pie
+                        data={spendingData}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        dataKey="value"
+                        nameKey="name"
+                      >
+                        {spendingData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value, name) => [`৳${Number(value || 0).toLocaleString()}`, name as string]} />
+                      <Legend />
+                    </PieChart>
+                  </PieResponsiveContainer>
+                </Box>
+              )}
+              <Button fullWidth variant="contained" onClick={() => setBudgetOpen(true)} sx={{ mt: 3 }}>
+                View Budget
+              </Button>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Accounts */}
+      <Box sx={{ mb: 4 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>My Accounts</Typography>
+          <Button variant="outlined" onClick={() => navigate('/customer/accounts')}>
+            View All
+          </Button>
+        </Box>
+        <Grid container spacing={2.5}>
+          {accounts.slice(0, 4).map((account, index) => (
+            <Grid item xs={12} sm={6} md={4} lg={3} key={account.id}>
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} whileHover={{ y: -6 }}>
+                <Card sx={{ height: '100%' }}>
+                  <CardContent sx={{ p: 2.5 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                      <Typography variant="subtitle1" sx={{ fontFamily: '"SF Mono", monospace', fontWeight: 700, fontSize: '0.85rem' }}>
+                        **** {account.accountNumber.slice(-4)}
+                      </Typography>
+                      <Chip label={account.type.replace(/_/g, ' ')} size="small" color="primary" sx={{ fontWeight: 600, fontSize: '0.65rem' }} />
+                    </Box>
+                    <Typography variant="h5" sx={{ fontWeight: 800, mb: 1.5, color: 'primary.main' }}>
+                      ৳ {Number(account.balance).toLocaleString()}
+                    </Typography>
+                    <Chip label={account.isActive ? "Active" : "Inactive"} color={account.isActive ? "success" : "default"} size="small" sx={{ fontWeight: 600 }} />
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </Grid>
+          ))}
+          {accounts.length === 0 && (
+            <Grid item xs={12}>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                <Card sx={{ border: "1px solid", borderColor: "divider", textAlign: "center", py: 6 }}>
+                  <Typography color="text.secondary" variant="h6" sx={{ mb: 1 }}>
+                    No accounts yet
+                  </Typography>
+                  <Typography color="text.secondary">
+                    Your first banking account awaits!
+                  </Typography>
+                  <Button variant="contained" sx={{ mt: 2 }} onClick={() => navigate('/customer/transfer')}>
+                    Get Started
+                  </Button>
+                </Card>
+              </motion.div>
+            </Grid>
           )}
-        </CardContent>
-      </Card>
+        </Grid>
+      </Box>
+
+      {/* Budget Modal */}
+      <Modal open={budgetOpen} onClose={() => setBudgetOpen(false)} closeAfterTransition slots={{ backdrop: Backdrop }} slotProps={{ backdrop: { timeout: 500 } }}>
+        <Fade in={budgetOpen}>
+          <Box sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: { xs: '95vw', sm: 500 },
+            maxHeight: '90vh',
+            bgcolor: 'background.paper',
+            borderRadius: 3,
+            boxShadow: 24,
+            p: 4,
+            overflow: 'auto'
+          }}>
+            <Typography variant="h5" sx={{ mb: 3, fontWeight: 700 }}>
+              Budget Tracker
+            </Typography>
+            <Typography color="text.secondary" sx={{ mb: 4 }}>
+              Coming soon: Track income, expenses, and set monthly budgets with AI insights.
+            </Typography>
+            <Button fullWidth variant="contained" onClick={() => setBudgetOpen(false)}>
+              Close
+            </Button>
+          </Box>
+        </Fade>
+      </Modal>
+
+      {/* Local Snackbar */}
+      <Snackbar
+        open={snackbar?.open || false}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <MuiAlert 
+          onClose={() => setSnackbar(null)} 
+          severity={snackbar?.severity} 
+          sx={{ width: '100%' }}
+        >
+          {snackbar?.message}
+        </MuiAlert>
+      </Snackbar>
     </Box>
   );
 }

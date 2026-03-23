@@ -212,6 +212,7 @@ export interface Notification {
   title: string;
   message: string;
   type: NotificationType;
+  transactionId?: number;
   isRead: boolean;
   createdAt: string;
 }
