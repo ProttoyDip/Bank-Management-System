@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { Box, AppBar, Toolbar, IconButton, Drawer, useMediaQuery, useTheme, Typography, InputBase, Badge, Avatar, Menu, MenuItem, Divider } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
@@ -6,8 +6,8 @@ import SearchIcon from "@mui/icons-material/Search";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import AdminSidebar from "./AdminSidebar";
 import { useAuth } from "../../context/AuthContext";
+import { useNotification } from "../../context/NotificationContext";
 import { Notification } from "../../types";
-import notificationService from "../../services/notificationService";
 
 const DRAWER_WIDTH = 260;
 
@@ -16,18 +16,10 @@ export default function AdminLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [notifAnchor, setNotifAnchor] = useState<null | HTMLElement>(null);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const { user, logout } = useAuth();
-
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      const notifs = await notificationService.getAdminNotifications();
-      setNotifications(notifs);
-    };
-    fetchNotifications();
-  }, []);
+  const { unreadCount, notifications, markAllAsRead } = useNotification();
 
   const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -38,14 +30,13 @@ export default function AdminLayout() {
   };
 
   const handleNotifMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    markAllAsRead();
     setNotifAnchor(event.currentTarget);
   };
 
   const handleNotifMenuClose = () => {
     setNotifAnchor(null);
   };
-
-  const unreadCount = notifications.filter(n => !n.isRead).length;
 
   const drawer = <AdminSidebar />;
 
@@ -183,13 +174,6 @@ export default function AdminLayout() {
               anchorEl={notifAnchor}
               open={Boolean(notifAnchor)}
               onClose={handleNotifMenuClose}
-              PaperProps={{
-                sx: {
-                  width: 360,
-                  maxHeight: 400,
-                  mt: 1,
-                },
-              }}
               transformOrigin={{ horizontal: "right", vertical: "top" }}
               anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
             >
@@ -201,12 +185,34 @@ export default function AdminLayout() {
               <Divider />
               {notifications.length > 0 ? (
                 notifications.map((notif) => (
-                  <MenuItem key={notif.id} onClick={handleNotifMenuClose} sx={{ py: 1.5 }}>
-                    <Box>
-                      <Typography variant="body2" sx={{ fontWeight: notif.isRead ? 400 : 600 }}>
-                        {notif.title}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                  <MenuItem 
+                    key={notif.id} 
+                    onClick={handleNotifMenuClose}
+                    sx={{ 
+                      px: 3, 
+                      py: 2,
+                      borderRadius: 1,
+                      mx: 1,
+                      mb: 1,
+                      transition: "all 0.2s ease",
+                      "&:hover": { transform: "translateX(4px)" }
+                    }}
+                  >
+                    <Box sx={{ display: "flex", flexDirection: "column", width: "100%" }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+                        <Typography variant="subtitle2" sx={{ 
+                          fontWeight: 700,
+                          color: notif.isRead ? "text.primary" : "primary.main"
+                        }}>
+                          {notif.title}
+                        </Typography>
+                        {!notif.isRead && (
+                          <Box sx={{
+                            width: 8, height: 8, borderRadius: "50%", bgcolor: "error.main"
+                          }} />
+                        )}
+                      </Box>
+                      <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.4 }}>
                         {notif.message}
                       </Typography>
                     </Box>

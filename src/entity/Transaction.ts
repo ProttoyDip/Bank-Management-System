@@ -8,6 +8,7 @@ import {
 } from "typeorm";
 import { Account } from "./Account";
 
+// Transaction types as enum
 export enum TransactionType {
     DEPOSIT = "Deposit",
     WITHDRAW = "Withdraw",
@@ -25,8 +26,9 @@ export class Transaction {
     @Column()
     accountId!: number;
 
-    @Column({ type: "nvarchar", length: 50 })
-    type!: string;
+    // Store enum as string (MSSQL compatible)
+    @Column({ type: "nvarchar", length: 50, enum: TransactionType })
+    type!: TransactionType;
 
     @Column({ type: "decimal", precision: 18, scale: 2 })
     amount!: number;

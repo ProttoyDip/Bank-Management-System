@@ -3,12 +3,11 @@ import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { UserRole } from "../types";
 
-interface ProtectedRouteProps {
-  allowedRoles?: UserRole[];
+interface PublicRouteProps {
   children?: React.ReactNode;
 }
 
-export default function ProtectedRoute({ allowedRoles, children }: ProtectedRouteProps) {
+export default function PublicRoute({ children }: PublicRouteProps) {
   const { user, isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
@@ -19,12 +18,8 @@ export default function ProtectedRoute({ allowedRoles, children }: ProtectedRout
     );
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-    // Redirect to their own dashboard based on role
+  if (isAuthenticated && user) {
+    // Redirect to role-based dashboard
     switch (user.role) {
       case UserRole.ADMIN:
         return <Navigate to="/admin/dashboard" replace />;
@@ -37,6 +32,6 @@ export default function ProtectedRoute({ allowedRoles, children }: ProtectedRout
     }
   }
 
+  // Not authenticated - show public content
   return children ? <>{children}</> : <Outlet />;
 }
-

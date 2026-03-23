@@ -4,6 +4,7 @@ import { User } from "../entity/User";
 import { login as authLogin } from "../services/authService";
 import { hashPassword } from "../utils/hashPassword";
 import { sendVerificationEmail } from "../utils/emailService";
+import { AuthRequest } from "../middleware/auth";
 
 // verification code generator
 const generateVerificationCode = (): string => {
@@ -366,6 +367,47 @@ export class UserController {
 
         } catch (error) {
             console.error("Change password error:", error);
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
+    // =============================== 
+    // AUTHENTICATED PASSWORD CHANGE
+    // ===============================
+    static async changePasswordAuth(req: AuthRequest, res: Response): Promise<void> {
+        try {
+            const userId = Number(req.user?.id);
+            const { currentPassword, newPassword } = req.body;
+
+            console.log('Password change attempt for userId:', userId);
+
+            if (!currentPassword || !newPassword) {
+                res.status(400).json({ error: "Current and new passwords required" });
+                return;
+            }
+
+            if (newPassword.length < 6) {
+                res.status(400).json({ error: "New password must be at least 6 characters" });
+                return;
+            }
+
+            const { changePassword } = require("../services/authService");
+            const result = await changePassword(userId, currentPassword, newPassword);
+
+            console.log('Password change result:', result);
+
+            if (!result.success) {
+                res.status(400).json({ error: result.error });
+                return;
+            }
+
+            res.json({ 
+                message: "Password changed successfully",
+                success: true 
+            });
+
+        } catch (error) {
+            console.error("Authenticated password change error:", error);
             res.status(500).json({ error: "Internal server error" });
         }
     }

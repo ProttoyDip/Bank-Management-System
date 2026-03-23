@@ -1,4 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  Alert,
+  Snackbar
+} from "@mui/material";
+import RefreshIcon from "@mui/icons-material/Refresh";
+
 import { useNavigate, useLocation, Link as RouterLink } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -7,6 +13,7 @@ import {
   Container,
   Typography,
   IconButton,
+
   Drawer,
   List,
   ListItem,
@@ -66,6 +73,12 @@ export default function VerifyCode() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // Resend functionality states
+  const [resendLoading, setResendLoading] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [showResendSuccess, setShowResendSuccess] = useState(false);
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
@@ -102,7 +115,54 @@ export default function VerifyCode() {
     } finally {
       setLoading(false);
     }
+  }
+
+  const startCountdown = useCallback(() => {
+    setCountdown(60);
+    countdownIntervalRef.current = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current);
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
+
+  const handleResend = async () => {
+    if (resendLoading || countdown > 0) return;
+
+    setResendLoading(true);
+    setError("");
+    setShowResendSuccess(false);
+
+    try {
+      await api.post("/users/forgot-password", { email });
+      setShowResendSuccess(true);
+      setCode("");
+      startCountdown();
+      
+      // Auto-hide success after 3s
+      setTimeout(() => setShowResendSuccess(false), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.error || "Failed to resend code. Please try again.");
+    } finally {
+      setResendLoading(false);
+    }
   };
+
+  // Cleanup countdown on unmount
+  useEffect(() => {
+    return () => {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+      }
+    };
+  }, []);
+
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -416,14 +476,73 @@ export default function VerifyCode() {
               </motion.button>
             </form>
 
+            {/* Resend Code Section */}
             <Box sx={{ textAlign: "center", mt: 4 }}>
-              <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.6)" }}>
-                Didn't receive the code?{" "}
-                <Link component={RouterLink} to="/forgot-password" sx={{ color: "#06b6d4", textDecoration: "none", fontWeight: 600, "&:hover": { color: "#0891b2" } }}>
-                  Resend Code
-                </Link>
-              </Typography>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Button
+                  onClick={handleResend}
+                  disabled={resendLoading || countdown > 0}
+                  startIcon={
+                    resendLoading ? (
+                      <Box sx={{ width: 20, height: 20, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "white", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+                    ) : countdown > 0 ? (
+                      <RefreshIcon sx={{ transform: countdown > 30 ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.3s" }} />
+                    ) : (
+                      <RefreshIcon />
+                    )
+                  }
+                  sx={{
+                    py: 1.5,
+                    px: 3,
+                    borderRadius: "20px",
+                    bgcolor: "rgba(255,255,255,0.1)",
+                    color: countdown > 0 ? "rgba(255,255,255,0.5)" : "#06b6d4",
+                    border: countdown > 0 ? "1px solid rgba(255,255,255,0.2)" : "1px solid #06b6d4",
+                    fontWeight: 600,
+                    fontSize: "0.95rem",
+                    textTransform: "none",
+                    minHeight: "44px",
+                    boxShadow: "0 4px 14px rgba(0,0,0,0.2)",
+                    "&:hover": {
+                      bgcolor: countdown > 0 ? "rgba(255,255,255,0.05)" : "rgba(6, 182, 212, 0.2)",
+                      borderColor: countdown > 0 ? "rgba(255,255,255,0.3)" : "#0891b2",
+                      color: countdown > 0 ? "rgba(255,255,255,0.6)" : "#0891b2",
+                    },
+                    "&:disabled": {
+                      bgcolor: "rgba(255,255,255,0.05)",
+                      color: "rgba(255,255,255,0.3)",
+                    }
+                  }}
+                >
+                  {resendLoading ? "Sending..." : countdown > 0 ? `Resend (${countdown}s)` : "Resend Code"}
+                </Button>
+              </motion.div>
             </Box>
+
+            {/* Resend Success Snackbar */}
+            <Snackbar
+              open={showResendSuccess}
+              autoHideDuration={3000}
+              onClose={() => setShowResendSuccess(false)}
+              anchorOrigin={{ vertical: "top", horizontal: "center" }}
+              sx={{ mt: 2 }}
+            >
+              <Alert 
+                onClose={() => setShowResendSuccess(false)} 
+                severity="success" 
+                sx={{ 
+                  bgcolor: "rgba(34, 197, 94, 0.9)",
+                  color: "white",
+                  "& .MuiAlert-icon": { color: "white" }
+                }}
+              >
+                New verification code sent to {email}!
+              </Alert>
+            </Snackbar>
           </Box>
         </motion.div>
       </Box>
