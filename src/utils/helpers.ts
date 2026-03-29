@@ -18,3 +18,18 @@ export function calculateEMI(principal: number, annualRate: number, months: numb
     const factor = Math.pow(1 + monthlyRate, months);
     return (principal * monthlyRate * factor) / (factor - 1);
 }
+
+// Generate Admin ID: ADM-0001 format (timestamp seq)
+export function generateAdminId(): string {
+    const seq = Date.now().toString().slice(-6).padStart(4, '0');
+    return `ADM-${seq}`;
+}
+
+// Generate Employee ID: EMP-1023 format
+export function generateEmployeeId(): string {
+    const seq = (1000 + Math.floor(Math.random() * 9000)).toString();
+    return `EMP-${seq}`;
+}
+
+// Hash sensitive codes (reuse hashPassword?)
+// Remove hashCode - directly use hashPassword in controllers

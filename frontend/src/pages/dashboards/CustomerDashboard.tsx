@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { 
   Box, 
   Typography, 
@@ -66,6 +66,8 @@ import {
   ResponsiveContainer as PieResponsiveContainer
 } from "recharts";
 
+import { useSearch } from "../../context/SearchContext";
+
 function getTxKind(type: TransactionType): "deposit" | "withdraw" | "transfer" | "loan" {
   if (type === TransactionType.DEPOSIT || type === TransactionType.TRANSFER_IN || type === TransactionType.LOAN_DISBURSEMENT) return "deposit";
   if (type === TransactionType.WITHDRAW || type === TransactionType.TRANSFER_OUT || type === TransactionType.LOAN_PAYMENT) return "withdraw";
@@ -82,6 +84,7 @@ type QuickMode = "deposit" | "withdraw" | "transfer";
 
 export default function CustomerDashboard() {
   const { user } = useAuth();
+  const { searchQuery } = useSearch();
 // Snackbar state for quick notifications (local)
   const [snackbar, setSnackbar] = useState<{open: boolean, message: string, severity: 'success' | 'error'} | null>(null);
 
@@ -97,6 +100,41 @@ export default function CustomerDashboard() {
   const [spendingData, setSpendingData] = useState<SpendingCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [budgetOpen, setBudgetOpen] = useState(false);
+
+  // Search filtered data
+  const filteredAccounts = useMemo(() => {
+    if (!searchQuery.trim()) return accounts;
+    const lowerQuery = searchQuery.toLowerCase();
+    return accounts.filter(acc => 
+      acc.accountNumber.toLowerCase().includes(lowerQuery) ||
+      acc.type.toLowerCase().includes(lowerQuery) ||
+      acc.balance.toString().includes(lowerQuery)
+    );
+  }, [accounts, searchQuery]);
+
+  const filteredRecentTransactions = useMemo(() => {
+    if (!searchQuery.trim()) return recentTransactions;
+    const lowerQuery = searchQuery.toLowerCase();
+    return recentTransactions.filter(tx => 
+      tx.description?.toLowerCase().includes(lowerQuery) ||
+      tx.referenceNumber?.toLowerCase().includes(lowerQuery) ||
+      tx.type.toLowerCase().includes(lowerQuery) ||
+      tx.amount.toString().includes(lowerQuery)
+    );
+  }, [recentTransactions, searchQuery]);
+
+  const filteredTrendData = useMemo(() => {
+    if (!searchQuery.trim()) return trendData;
+    return trendData; // Trend is aggregate, less filterable
+  }, [trendData, searchQuery]);
+
+  const filteredSpendingData = useMemo(() => {
+    if (!searchQuery.trim()) return spendingData;
+    const lowerQuery = searchQuery.toLowerCase();
+    return spendingData.filter(cat => 
+      cat.name.toLowerCase().includes(lowerQuery)
+    );
+  }, [spendingData, searchQuery]);
 
   // Quick Transaction states
   const [quickOpen, setQuickOpen] = useState(false);
@@ -151,7 +189,7 @@ export default function CustomerDashboard() {
     }
   }, [selectedAccountId, accounts]);
 
-  const totalBalance = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
+  const totalBalance = filteredAccounts.reduce((sum: number, a: Account) => sum + Number(a.balance), 0);
 
   const computeWeeklyTrend = (txs: Transaction[]) => {
     const now = new Date();
@@ -282,7 +320,7 @@ export default function CustomerDashboard() {
                 <Typography variant="h3" sx={{ fontWeight: 800, mb: 1, color: 'primary.main' }}>
                   ৳ {totalBalance.toLocaleString()}
                 </Typography>
-                <Chip label={`${accounts.length} Accounts`} size="small" color="primary" variant="outlined" />
+                <Chip label={`${filteredAccounts.length} Accounts`} size="small" color="primary" variant="outlined" />
               </CardContent>
             </Card>
           </Grid>
@@ -294,8 +332,8 @@ export default function CustomerDashboard() {
                   <Chip icon={<TrendingUpIcon />} label="+12.4%" color="success" size="small" />
                 </Box>
                 <Box sx={{ height: 200 }}>
-                  <ResponsiveContainer>
-                    <LineChart data={trendData}>
+                <ResponsiveContainer>
+                  <LineChart data={filteredTrendData}>
                       <defs>
                         <linearGradient id="trendGradient" x1="0" y1="1" x2="0" y2="0">
                           <stop offset="0%" stopColor="#10b981" stopOpacity={0.4}/>
@@ -490,16 +528,16 @@ export default function CustomerDashboard() {
             <CardContent sx={{ p: 0 }}>
               <Box sx={{ p: 3, pb: 2 }}>
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>Recent Transactions</Typography>
-                <Typography variant="body2" color="text.secondary">Last 10 activities</Typography>
+                <Typography variant="body2" color="text.secondary">Last 10 activities {searchQuery && `(${filteredRecentTransactions.length})`}</Typography>
               </Box>
               <Divider />
               <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
-                {recentTransactions.length === 0 ? (
+                {filteredRecentTransactions.length === 0 ? (
                   <Box sx={{ p: 4, textAlign: 'center' }}>
                     <Typography color="text.secondary">No recent transactions</Typography>
                   </Box>
                 ) : (
-                  recentTransactions.map((tx, index) => {
+                  filteredRecentTransactions.map((tx, index) => {
                     const txKind = getTxKind(tx.type);
                     const isPositive = tx.amount > 0;
                     return (
@@ -515,7 +553,7 @@ export default function CustomerDashboard() {
                           alignItems: "center",
                           py: 2.5,
                           px: 3,
-                          borderBottom: index < recentTransactions.length - 1 ? "1px solid" : "none",
+                        borderBottom: index < filteredRecentTransactions.length - 1 ? "1px solid" : "none",
                           borderColor: "divider",
                           cursor: 'pointer',
                           '&:hover': { backgroundColor: 'action.hover' }
@@ -574,7 +612,7 @@ export default function CustomerDashboard() {
                 <PieChartIcon color="primary" />
                 <Typography variant="h6" sx={{ fontWeight: 700 }}>Spending Breakdown</Typography>
               </Box>
-              {spendingData.length === 0 ? (
+              {filteredSpendingData.length === 0 ? (
                 <Box sx={{ textAlign: 'center', py: 4 }}>
                   <Typography color="text.secondary">No spending data yet</Typography>
                 </Box>
@@ -582,14 +620,14 @@ export default function CustomerDashboard() {
                 <Box sx={{ height: 250 }}>
                   <PieResponsiveContainer>
                     <PieChart>
-                      <Pie
-                        data={spendingData}
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={80}
-                        dataKey="value"
-                        nameKey="name"
-                      >
+                <Pie
+                  data={filteredSpendingData}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  dataKey="value"
+                  nameKey="name"
+                >
                         {spendingData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}

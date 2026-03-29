@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useSearch } from "../../context/SearchContext";
 
 import { useNavigate } from "react-router-dom";
@@ -28,6 +29,7 @@ import type { Account, User, ApiResponse } from "../../types";
 import { useAuth } from "../../context/AuthContext";
 
 export default function CustomerAccounts() {
+  const [searchParams] = useSearchParams();
   const { user: authUser } = useAuth();
   const navigate = useNavigate();
   const themeContext = useThemeContext();
@@ -35,7 +37,14 @@ export default function CustomerAccounts() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [snack, setSnack] = useState({ open: false, message: "", severity: "error" as "success" | "error" });
-  const { searchQuery } = useSearch();
+  const { searchQuery, setSearchQuery } = useSearch(); 
+
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q) {
+      setSearchQuery(decodeURIComponent(q));
+    }
+  }, [searchParams, setSearchQuery]);
   const filteredAccounts = useMemo(() => {
     if (!searchQuery.trim()) return accounts;
     const query = searchQuery.toLowerCase();

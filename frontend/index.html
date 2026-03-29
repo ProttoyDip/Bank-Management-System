@@ -1,10 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bank Management System</title>
+    <script>
+      // Init theme before React mounts to prevent flash
+      (function() {
+        const saved = localStorage.getItem('theme:darkMode');
+        const isDark = saved === 'true';
+        if (isDark) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

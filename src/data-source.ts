@@ -13,41 +13,43 @@ dotenv.config()
 const database = "BankManagementSystem"
 
 // Configuration for Docker SQL Server (primary)
-const dockerConfig: DataSourceOptions = {
-    type: "mssql",
-    host: "localhost",
-    port: 1433,
-    database: database,
-    username: "sa",
-    password: "12345678",
+const getDBConfig = (): DataSourceOptions => {
+  const required = ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASS'];
+  const missing = required.filter(k => !process.env[k]);
+  if (missing.length) {
+    throw new Error(`Missing DB env vars: ${missing.join(', ')}`);
+  }
+  return {
+    type: "mssql" as const,
+    host: process.env.DB_HOST!,
+    port: parseInt(process.env.DB_PORT!),
+    database: process.env.DB_NAME!,
+    username: process.env.DB_USER!,
+    password: process.env.DB_PASS!,
     options: {
-        encrypt: false,
+        encrypt: process.env.DB_ENCRYPT === 'true',
         trustServerCertificate: true,
     },
-}
+  };
+};
 
-// Configuration for local SQL Server Express (fallback)
-const localConfig: DataSourceOptions = {
-    type: "mssql",
-    host: "localhost",
-    port: 1433,
-    database: database,
-    username: "sa",
-    password: "12345678",
-    options: {
-        encrypt: false,
-        trustServerCertificate: true,
-    },
-}
+const dockerConfig: DataSourceOptions = getDBConfig();
+
+
+// Local fallback uses same env config
+const localConfig: DataSourceOptions = getDBConfig();
+
 
 // Standard TypeORM settings
 const baseOptions = {
-    synchronize: true,
+    synchronize: false, // Production ready: use manual migrations
     logging: true,
     entities: [User, Account, Loan, Transaction, Employee, Branch],
+
     migrations: [],
     subscribers: [],
 }
+
 
 // Create DataSource with Docker config
 export const AppDataSource = new DataSource({

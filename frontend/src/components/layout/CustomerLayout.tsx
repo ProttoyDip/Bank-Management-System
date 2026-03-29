@@ -71,6 +71,26 @@ export default function CustomerLayout() {
     handleNotifMenuClose();
   };
 
+  const handleSearchSubmit = (event: React.KeyboardEvent) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    const input = event.currentTarget.querySelector('input') as HTMLInputElement | null;
+    const query = input?.value || '';
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) return;
+
+    const lowerQuery = trimmedQuery.toLowerCase();
+    let path = '';
+    if (lowerQuery.includes('transaction')) {
+      path = `/customer/transactions?q=${encodeURIComponent(trimmedQuery)}`;
+    } else if (lowerQuery.includes('account')) {
+      path = `/customer/accounts?q=${encodeURIComponent(trimmedQuery)}`;
+    } else {
+      return;
+    }
+    navigate(path);
+  };
+
   const drawer = <CustomerSidebar />;
 
   const navbarBg = isDarkMode 
@@ -203,6 +223,7 @@ export default function CustomerLayout() {
                 placeholder="Search transactions, accounts..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleSearchSubmit}
                 sx={{ flex: 1, fontSize: "0.9rem" }} 
               />
               {searchQuery && (

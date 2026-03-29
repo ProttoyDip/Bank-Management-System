@@ -42,7 +42,14 @@ export default function TransactionHistory() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(""); 
+
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q) {
+      setSearch(decodeURIComponent(q));
+    }
+  }, [searchParams]);
   const [typeFilter, setTypeFilter] = useState("all");
   const tableRef = useRef<HTMLTableElement>(null);
 

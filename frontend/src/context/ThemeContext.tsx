@@ -9,8 +9,6 @@ interface ThemeState {
 
 type ThemeAction = { type: "SET"; payload: boolean } | { type: "TOGGLE" };
 
-const initialState: ThemeState = { isDarkMode: false };
-
 function themeReducer(state: ThemeState, action: ThemeAction): ThemeState {
   switch (action.type) {
     case "SET":
@@ -21,6 +19,14 @@ function themeReducer(state: ThemeState, action: ThemeAction): ThemeState {
       return state;
   }
 }
+
+const getInitialThemeState = (): ThemeState => {
+  if (typeof window === 'undefined') return { isDarkMode: false };
+  const saved = localStorage.getItem("theme:darkMode");
+  return { isDarkMode: saved === "true" };
+};
+
+const initialState: ThemeState = getInitialThemeState();
 
 interface ThemeContextType {
   isDarkMode: boolean;
@@ -33,15 +39,26 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(themeReducer, initialState);
 
+  // Initial load now sync in initialState, effect only for SSR/client mismatch
   useEffect(() => {
+    // Double-check sync (rare client-side hydration mismatch)
     const saved = localStorage.getItem("theme:darkMode");
-    if (saved !== null) {
-      dispatch({ type: "SET", payload: saved === "true" });
+    if (saved !== null && saved === "true" && !state.isDarkMode) {
+      dispatch({ type: "SET", payload: true });
     }
   }, []);
 
   useEffect(() => {
     localStorage.setItem("theme:darkMode", state.isDarkMode.toString());
+    if (typeof document !== 'undefined') {
+      if (state.isDarkMode) {
+        document.body.classList.add('dark');
+        document.documentElement.classList.add('dark');
+      } else {
+        document.body.classList.remove('dark');
+        document.documentElement.classList.remove('dark');
+      }
+    }
   }, [state.isDarkMode]);
 
   const currentTheme = useMemo(
