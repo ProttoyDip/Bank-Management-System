@@ -10,6 +10,17 @@ export interface User {
   accounts?: Account[];
   createdAt: string;
   updatedAt: string;
+  // Admin fields
+  adminId?: string;
+  authCode?: string;
+  accessLevel?: string;
+  department?: string;
+  officeLocation?: string;
+  // Shared
+  nationalId?: string;
+  twoFactorEnabled?: boolean;
+  profilePhoto?: string;
+  status?: string;
 }
 
 export interface Account {
@@ -144,6 +155,50 @@ export interface CreateUserPayload {
   email: string;
   phone?: string;
   address?: string;
+}
+
+// Role-specific creation payloads matching backend schemas
+export interface AdminCreateInput {
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+  nationalId: string;
+  authCode: string;
+  department: 'IT' | 'Operations' | 'Compliance';
+  officeLocation: string;
+  accessLevel: 'Super Admin' | 'Manager Admin';
+  permissions: string[];
+  twoFactorEnabled?: boolean;
+  securityQuestions?: {
+    q1: string;
+    ans1: string;
+    q2: string;
+    ans2: string;
+  };
+  role: 'Admin';
+}
+
+export interface EmployeeCreateInput {
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+  dateOfBirth: string; // YYYY-MM-DD
+  gender: 'Male' | 'Female' | 'Other';
+  nationalId: string;
+  presentAddress: string;
+  permanentAddress: string;
+  department: string;
+  position: string;
+  branchId: number;
+  employmentType: 'Full-time' | 'Contract';
+  dailyTransactionLimit: number;
+  permissions: string[];
+  twoFactorEnabled?: boolean;
+  salary?: number;
+  hireDate?: string; // YYYY-MM-DD
+  role: 'Employee';
 }
 
 export interface CreateAccountPayload {

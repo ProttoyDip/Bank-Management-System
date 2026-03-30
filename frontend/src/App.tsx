@@ -39,6 +39,7 @@ import CustomerAccounts from "./pages/customers/CustomerAccounts";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
 import { UserRole } from "./types";
+import React, { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 function ThemedApp() {

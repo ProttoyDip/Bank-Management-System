@@ -16,8 +16,18 @@ interface LoginResult {
 export async function login(email: string, password: string): Promise<LoginResult> {
     const userRepository = getDataSource().getRepository(User);
 
-    // Find user by email
-    const user = await userRepository.findOneBy({ email });
+    // Find user by email (select only needed fields to avoid nullable admin columns)
+    const user = await userRepository.findOne({ 
+        where: { email },
+        select: { 
+            id: true, 
+            email: true, 
+            password: true, 
+            role: true,
+            name: true,
+            status: true 
+        } 
+    });
 
     if (!user) {
         return {
@@ -64,7 +74,10 @@ export async function register(
     const userRepository = getDataSource().getRepository(User);
 
     // Check if user already exists
-    const existingUser = await userRepository.findOneBy({ email });
+    const existingUser = await userRepository.findOne({ 
+        where: { email },
+        select: { id: true }
+    });
     if (existingUser) {
         return {
             success: false,
@@ -103,7 +116,13 @@ export async function changePassword(
 ): Promise<{ success: boolean; error?: string }> {
     const userRepository = getDataSource().getRepository(User);
 
-    const user = await userRepository.findOneBy({ id: userId });
+    const user = await userRepository.findOne({ 
+        where: { id: userId },
+        select: { 
+            id: true, 
+            password: true 
+        } 
+    });
     if (!user) {
         return {
             success: false,

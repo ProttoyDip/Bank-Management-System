@@ -72,6 +72,26 @@ export default function Navbar({ onMenuClick, sidebarWidth }: NavbarProps) {
     navigate("/login");
   };
 
+  const handleSearchSubmit = (event: React.KeyboardEvent) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    const input = event.currentTarget.querySelector('input') as HTMLInputElement | null;
+    const query = input?.value || '';
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) return;
+
+    const lowerQuery = trimmedQuery.toLowerCase();
+    let path = '';
+    if (lowerQuery.includes('transaction')) {
+      path = `/customer/transactions?q=${encodeURIComponent(trimmedQuery)}`;
+    } else if (lowerQuery.includes('account')) {
+      path = `/customer/accounts?q=${encodeURIComponent(trimmedQuery)}`;
+    } else {
+      return;
+    }
+    navigate(path);
+  };
+
   return (
     <AppBar
       position="fixed"
@@ -127,6 +147,7 @@ export default function Navbar({ onMenuClick, sidebarWidth }: NavbarProps) {
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={() => setSearchFocused(true)}
               onBlur={() => setSearchFocused(false)}
+              onKeyDown={handleSearchSubmit}
               sx={{
                 flex: 1,
                 fontSize: "0.9rem",

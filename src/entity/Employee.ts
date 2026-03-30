@@ -42,6 +42,30 @@ export class Employee {
     @CreateDateColumn()
     createdAt!: Date;
 
+@Column({ type: "date", nullable: true })
+    dateOfBirth!: Date;
+
+    @Column({ type: "nvarchar", length: 20, nullable: true })
+    gender!: string;
+
+    @Column({ type: "nvarchar", length: 50, nullable: true })
+    employmentType!: string; // Full-time / Contract
+
+    @Column({ type: "nvarchar", length: 100, nullable: true })
+    presentAddress!: string;
+
+    @Column({ type: "nvarchar", length: 255, nullable: true })
+    permanentAddress!: string;
+
+    @Column({ type: "int", nullable: true })
+    branchId!: number;
+
+    @Column({ type: "decimal", precision: 18, scale: 2, default: 0 })
+    dailyTransactionLimit!: number;
+
+    @Column({ type: "nvarchar", length: 1000, nullable: true })
+    permissions!: string; // JSON e.g. '["viewCustomers","processTransactions"]'
+
     @UpdateDateColumn()
     updatedAt!: Date;
 }

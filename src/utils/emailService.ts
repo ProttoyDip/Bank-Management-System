@@ -15,10 +15,9 @@ const requiredEnvVars = [
 const missingVars = requiredEnvVars.filter(
   (varName) => !process.env[varName] || process.env[varName]?.trim() === ""
 );
-
 if (missingVars.length > 0) {
-  console.error(`❌ Missing required SMTP env vars: ${missingVars.join(", ")}`);
-  console.error("⚠️ Please check your .env file");
+  console.warn(`⚠️ Missing SMTP env vars: ${missingVars.join(", ")}. Email disabled.`);
+
   process.exit(1);
 }
 
