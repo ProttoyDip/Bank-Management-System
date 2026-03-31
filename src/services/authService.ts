@@ -14,11 +14,52 @@ interface LoginResult {
  * Authenticate a user and generate JWT token
  */
 export async function login(email: string, password: string): Promise<LoginResult> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const adminEmail = String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
+    const adminPasswordHash = String(process.env.ADMIN_PASSWORD_HASH || "").trim();
+
+    if (adminEmail && normalizedEmail === adminEmail) {
+        if (!adminPasswordHash) {
+            return {
+                success: false,
+                error: "Admin authentication is not configured"
+            };
+        }
+
+        const isAdminPasswordValid = await comparePassword(password, adminPasswordHash);
+        if (!isAdminPasswordValid) {
+            return {
+                success: false,
+                error: "Invalid credentials"
+            };
+        }
+
+        const token = generateToken({
+            id: -1,
+            user_id: "ADMIN_STATIC_ID",
+            email: adminEmail,
+            role: "ADMIN"
+        });
+
+        const adminUser = {
+            id: -1,
+            name: "System Administrator",
+            email: adminEmail,
+            role: "ADMIN"
+        } as User;
+
+        return {
+            success: true,
+            token,
+            user: adminUser
+        };
+    }
+
     const userRepository = getDataSource().getRepository(User);
 
     // Find user by email (select only needed fields to avoid nullable admin columns)
     const user = await userRepository.findOne({ 
-        where: { email },
+        where: { email: normalizedEmail },
         select: { 
             id: true, 
             email: true, 
@@ -71,6 +112,14 @@ export async function register(
     address?: string,
     role: string = "Customer"
 ): Promise<{ success: boolean; user?: User; error?: string }> {
+    const normalizedRole = String(role || "").trim().toLowerCase();
+    if (normalizedRole === "admin") {
+        return {
+            success: false,
+            error: "Unauthorized role selection"
+        };
+    }
+
     const userRepository = getDataSource().getRepository(User);
 
     // Check if user already exists

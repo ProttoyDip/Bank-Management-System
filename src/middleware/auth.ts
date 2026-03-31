@@ -8,6 +8,7 @@ export interface AuthRequest extends Request {
         id: number;
         email: string;
         role: string;
+        user_id?: string;
         employeeId?: number;
         employeeCode?: string;
     };
@@ -45,6 +46,11 @@ export async function verifyEmployeeRole(req: AuthRequest, res: Response, next: 
     }
 
     try {
+        if (!Number.isInteger(req.user.id) || req.user.id <= 0) {
+            res.status(403).json({ error: "Invalid employee token" });
+            return;
+        }
+
         const employee = await getDataSource().getRepository(Employee).findOne({
             where: { userId: req.user.id, isActive: true }
         });
@@ -64,6 +70,20 @@ export async function verifyEmployeeRole(req: AuthRequest, res: Response, next: 
 }
 
 export const authMiddleware = verifyToken;
+
+export function verifyAdminRole(req: AuthRequest, res: Response, next: NextFunction): void {
+    if (!req.user) {
+        res.status(401).json({ error: "Authentication required" });
+        return;
+    }
+
+    if (String(req.user.role || "").toUpperCase() !== "ADMIN") {
+        res.status(403).json({ error: "Unauthorized" });
+        return;
+    }
+
+    next();
+}
 
 /**
  * Middleware to check if user has required role

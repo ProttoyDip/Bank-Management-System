@@ -36,8 +36,6 @@ const accountTypes = [
 
 const roles = [
   { id: "customer", label: "Customer", icon: AccountCircleIcon },
-  { id: "employee", label: "Employee", icon: AccountBalanceIcon },
-  { id: "admin", label: "Admin", icon: LockIcon },
 ];
 
 const floatingElements = [
@@ -158,7 +156,7 @@ export default function Register() {
     
     try {
       console.log("Creating user with:", { name: form.firstName + " " + form.lastName, email: form.email, phone: form.phone || undefined, address: form.address || undefined, password: form.password, role: UserRole.CUSTOMER, accountType: form.accountType, initialDeposit: Number(form.initialDeposit || "2000") });
-      await api.post("/users", {
+      await api.post("/auth/register", {
         name: form.firstName + " " + form.lastName,
         email: form.email,
         phone: form.phone || undefined,

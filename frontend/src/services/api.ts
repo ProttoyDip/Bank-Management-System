@@ -23,7 +23,8 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 && !error.config?.url?.includes('/users/login')) {
+    const isLoginEndpoint = error.config?.url?.includes('/users/login') || error.config?.url?.includes('/auth/login');
+    if (error.response?.status === 401 && !isLoginEndpoint) {
       // Token expired or invalid - skip for login endpoint
       localStorage.removeItem("token");
       localStorage.removeItem("user");

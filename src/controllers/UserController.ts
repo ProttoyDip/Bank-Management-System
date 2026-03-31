@@ -5,7 +5,7 @@ import { Employee } from "../entity/Employee";
 import { Account } from "../entity/Account";
 import { login as authLogin } from "../services/authService";
 import { hashPassword } from "../utils/hashPassword";
-import { generateAdminId, generateEmployeeId, generateAccountNumber } from "../utils/helpers";
+import { generateEmployeeId, generateAccountNumber } from "../utils/helpers";
 import { sendVerificationEmail } from "../utils/emailService";
 import { AuthRequest } from "../middleware/auth";
 import { userLoginSchema, userCreateSchema, customerRegisterSchema } from "../validators/userSchema";
@@ -14,15 +14,22 @@ const generateVerificationCode = (): string => {
     return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
+const getFixedAdminEmail = (): string => String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
+
 export class UserController {
     // FORGOT PASSWORD - SEND VERIFICATION CODE
     static async forgotPassword(req: Request, res: Response): Promise<void> {
         try {
             const email = String(req.body?.email || "").trim().toLowerCase();
             const role = String(req.body?.role || "").trim().toLowerCase();
+            const fixedAdminEmail = getFixedAdminEmail();
 
             if (!email) {
                 res.status(400).json({ error: "Email is required" });
+                return;
+            }
+            if (fixedAdminEmail && email === fixedAdminEmail) {
+                res.status(403).json({ error: "Password reset is disabled for fixed admin" });
                 return;
             }
 
@@ -172,6 +179,10 @@ export class UserController {
             }
 
             const data = userCreateSchema.parse(req.body);
+            if (String(data.role || "").toLowerCase() === "admin") {
+                res.status(403).json({ error: "Unauthorized role selection" });
+                return;
+            }
             const userRepo = getDataSource().getRepository(User);
             const employeeRepo = getDataSource().getRepository(Employee);
 
@@ -195,20 +206,14 @@ export class UserController {
                 password: hashedPassword,
                 role,
                 status: "Active",
-                createdBy: req.user.id
+                createdBy: Number.isInteger(Number(req.user?.id)) ? Number(req.user?.id) : null
             } as Partial<User>;
             let user = userRepo.create(createData);
 
             // ================= ADMIN =================
             if (role === "Admin") {
-                const adminData = data as any;
-
-                user.adminId = generateAdminId();
-                user.authCode = await hashPassword(adminData.authCode);
-                user.accessLevel = adminData.accessLevel;
-                user.permissions = JSON.stringify(adminData.permissions);
-                user.department = adminData.department;
-                user.officeLocation = adminData.officeLocation;
+                res.status(403).json({ error: "Unauthorized role selection" });
+                return;
             }
 
             // ✅ FIX: save single user (NOT array)
@@ -255,6 +260,12 @@ export class UserController {
     static async registerCustomer(req: Request, res: Response): Promise<void> {
         const queryRunner = getDataSource().createQueryRunner();
         try {
+            const requestedRole = String(req.body?.role || "").trim().toLowerCase();
+            if (requestedRole === "admin") {
+                res.status(403).json({ error: "Unauthorized role selection" });
+                return;
+            }
+
             const data = customerRegisterSchema.parse(req.body);
             const email = data.email.toLowerCase();
 
@@ -371,10 +382,15 @@ export class UserController {
         try {
             const repo = getDataSource().getRepository(User);
             const id = Number(req.params.id);
+            const fixedAdminEmail = getFixedAdminEmail();
 
             const user = await repo.findOneBy({ id });
             if (!user) {
                 res.status(404).json({ error: "User not found" });
+                return;
+            }
+            if (fixedAdminEmail && user.email.toLowerCase() === fixedAdminEmail) {
+                res.status(403).json({ error: "Fixed admin record cannot be modified" });
                 return;
             }
 
@@ -396,6 +412,15 @@ export class UserController {
     static async delete(req: Request, res: Response): Promise<void> {
         try {
             const id = Number(req.params.id);
+            const fixedAdminEmail = getFixedAdminEmail();
+
+            if (fixedAdminEmail) {
+                const user = await getDataSource().getRepository(User).findOneBy({ id });
+                if (user && user.email.toLowerCase() === fixedAdminEmail) {
+                    res.status(403).json({ error: "Fixed admin record cannot be deleted" });
+                    return;
+                }
+            }
 
             const result = await getDataSource()
                 .getRepository(User)

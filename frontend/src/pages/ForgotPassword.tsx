@@ -41,7 +41,6 @@ import api from "../services/api";
 const roles = [
   { id: "customer", label: "Customer", icon: AccountCircleIcon },
   { id: "employee", label: "Employee", icon: AccountBalanceIcon },
-  { id: "admin", label: "Admin", icon: LockIcon },
 ];
 
 // 3D Floating Elements Data
