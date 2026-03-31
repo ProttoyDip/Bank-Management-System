@@ -47,7 +47,7 @@ import { useTheme } from "@mui/material";
 import { useAuth } from "../../context/AuthContext";
 import { useNotification } from "../../context/NotificationContext";
 import api from "../../services/api";
-import { Account, ApiResponse, Transaction, TransactionType, User } from "../../types";
+import { Account, ApiResponse, Transaction, TransactionType } from "../../types";
 import { motion } from "framer-motion";
 import {
   LineChart,
@@ -142,6 +142,9 @@ export default function CustomerDashboard() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | "">("");
   const [amount, setAmount] = useState("");
   const [destinationAccount, setDestinationAccount] = useState("");
+  const [destinationAccountId, setDestinationAccountId] = useState<number | null>(null);
+  const [destinationAccountName, setDestinationAccountName] = useState("");
+  const [searchingDestination, setSearchingDestination] = useState(false);
   const [quickError, setQuickError] = useState("");
   const [quickSubmitting, setQuickSubmitting] = useState(false);
   const [selectedAccountBalance, setSelectedAccountBalance] = useState(0);
@@ -152,16 +155,15 @@ export default function CustomerDashboard() {
     try {
       setLoading(true);
       if (user) {
-        const res = await api.get<ApiResponse<User>>(`/users/${user.id}`);
-        const userAccounts = res.data.data.accounts || [];
+        const res = await api.get<ApiResponse<Account[]>>(`/accounts/my-accounts`);
+        const userAccounts = res.data.data || [];
         setAccounts(userAccounts);
+        if (userAccounts.length > 0 && !selectedAccountId) {
+          setSelectedAccountId(userAccounts[0].id);
+        }
 
-        const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
-        const txPromises = userAccounts.map(acc => 
-          api.get<ApiResponse<Transaction[]>>(`/transactions/account/${acc.id}?from=${ninetyDaysAgo}`)
-            .then(r => r.data.data || [])
-        );
-        const allTx = (await Promise.all(txPromises)).flat().sort(
+        const txRes = await api.get<ApiResponse<Transaction[]>>(`/transactions/my-transactions?limit=200`);
+        const allTx = (txRes.data.data || []).sort(
           (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
         setRecentTransactions(allTx.slice(0, 10));
@@ -177,7 +179,7 @@ export default function CustomerDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, selectedAccountId]);
 
   useEffect(() => {
     fetchData();
@@ -248,8 +250,8 @@ export default function CustomerDashboard() {
       return;
     }
 
-    if (quickMode === "transfer" && !destinationAccount) {
-      setQuickError("Please enter destination account number");
+    if (quickMode === "transfer" && !destinationAccountId) {
+      setQuickError("Search and verify destination account first");
       return;
     }
 
@@ -259,10 +261,9 @@ export default function CustomerDashboard() {
 
       let res;
       if (quickMode === "transfer") {
-        // Note: Backend expects toAccountNumber search; adjust if ID-based
         res = await api.post("/accounts/transfer", {
           fromAccountId: selectedAccountId,
-          toAccountNumber: destinationAccount,
+          toAccountId: destinationAccountId,
           amount: numAmount
         });
       } else {
@@ -284,10 +285,43 @@ export default function CustomerDashboard() {
   const handleQuickClose = () => {
     setQuickOpen(false);
     setQuickMode("deposit");
-    setSelectedAccountId("");
+    setSelectedAccountId(accounts[0]?.id || "");
     setAmount("");
     setDestinationAccount("");
+    setDestinationAccountId(null);
+    setDestinationAccountName("");
     setQuickError("");
+  };
+
+  const handleSearchDestinationAccount = async () => {
+    if (!destinationAccount.trim()) {
+      setQuickError("Please enter destination account number");
+      return;
+    }
+
+    setSearchingDestination(true);
+    setQuickError("");
+    try {
+      const found = await api.get<ApiResponse<{ id: number; name: string; accountNumber: string }>>(
+        `/accounts/search?accountNumber=${encodeURIComponent(destinationAccount.trim())}`
+      );
+
+      if (found.data.data.id === Number(selectedAccountId)) {
+        setDestinationAccountId(null);
+        setDestinationAccountName("");
+        setQuickError("Cannot transfer to the same account");
+        return;
+      }
+
+      setDestinationAccountId(found.data.data.id);
+      setDestinationAccountName(found.data.data.name);
+    } catch (err: any) {
+      setDestinationAccountId(null);
+      setDestinationAccountName("");
+      setQuickError(err.response?.data?.error || "Account not found");
+    } finally {
+      setSearchingDestination(false);
+    }
   };
 
   const getPreviewBalance = () => {
@@ -376,7 +410,7 @@ export default function CustomerDashboard() {
                 <Card
                   onClick={() => {
                     setQuickMode(mode);
-                    setSelectedAccountId("");
+                    setSelectedAccountId(accounts[0]?.id || "");
                     setAmount("");
                     setQuickOpen(true);
                   }}
@@ -457,6 +491,7 @@ export default function CustomerDashboard() {
                   value={selectedAccountId}
                   label="Select Account"
                   onChange={(e) => setSelectedAccountId(e.target.value as number)}
+                  disabled
                 >
                   {accounts.map(acc => (
                     <MenuItem key={acc.id} value={acc.id}>
@@ -479,13 +514,38 @@ export default function CustomerDashboard() {
               />
 
               {quickMode === 'transfer' && (
-                <TextField
-                  fullWidth
-                  label="To Account Number"
-                  value={destinationAccount}
-                  onChange={(e) => setDestinationAccount(e.target.value)}
-                  sx={{ mb: 3 }}
-                />
+                <>
+                  <TextField
+                    fullWidth
+                    label="To Account Number"
+                    value={destinationAccount}
+                    onChange={(e) => {
+                      setDestinationAccount(e.target.value);
+                      setDestinationAccountId(null);
+                      setDestinationAccountName("");
+                    }}
+                    sx={{ mb: 2 }}
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <Button
+                            variant="contained"
+                            size="small"
+                            onClick={handleSearchDestinationAccount}
+                            disabled={searchingDestination || !destinationAccount.trim()}
+                          >
+                            {searchingDestination ? "..." : "Search"}
+                          </Button>
+                        </InputAdornment>
+                      )
+                    }}
+                  />
+                  {destinationAccountName && (
+                    <Alert severity="success" sx={{ mb: 3 }}>
+                      Account found: {destinationAccountName}
+                    </Alert>
+                  )}
+                </>
               )}
 
               {selectedAccount && (
@@ -508,7 +568,7 @@ export default function CustomerDashboard() {
 <Button
                 variant="contained"
                 onClick={handleQuickSubmit}
-                disabled={quickSubmitting}
+                disabled={quickSubmitting || (quickMode === "transfer" && !destinationAccountId)}
                 fullWidth
                 sx={{ borderRadius: 2 }}
                 startIcon={quickSubmitting ? <CircularProgress size={20} color="inherit" /> : null}

@@ -110,8 +110,12 @@ export default function LoanList() {
           setForm(prev => ({ ...prev, userId: user.id }));
           
           // Fetch only the current user's accounts
-          const accountsRes = await api.get<ApiResponse<Account[]>>(`/accounts/user/${user.id}`);
-          setAccounts(accountsRes.data.data);
+          const accountsRes = await api.get<ApiResponse<Account[]>>(`/accounts/my-accounts`);
+          const myAccounts = accountsRes.data.data || [];
+          setAccounts(myAccounts);
+          if (myAccounts.length > 0) {
+            setForm(prev => ({ ...prev, accountId: myAccounts[0].id }));
+          }
         } else {
           // For admin/employee, fetch all users and accounts
           const [usersRes, accountsRes] = await Promise.all([
@@ -370,7 +374,7 @@ export default function LoanList() {
             fullWidth
             value={form.accountId || ""}
             onChange={(e) => setForm({ ...form, accountId: Number(e.target.value) })}
-            disabled={!form.userId}
+            disabled={!form.userId || (user?.role === UserRole.CUSTOMER && filteredAccounts.length <= 1)}
           >
             {filteredAccounts.map((a) => (
               <MenuItem key={a.id} value={a.id}>{a.accountNumber} ({a.type})</MenuItem>

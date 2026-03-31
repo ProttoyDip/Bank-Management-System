@@ -2,13 +2,17 @@ import { Router } from "express";
 import { UserController } from "../controllers/UserController";
 import { authMiddleware, roleMiddleware } from "../middleware/auth";
 import { validate } from '../middleware/validation';
-import { userLoginSchema, userCreateSchema } from '../validators/userSchema';
+import { userLoginSchema, userCreateSchema, customerRegisterSchema } from '../validators/userSchema';
 
 
 const router = Router();
 
 // Auth routes (public)
+router.post("/", validate(customerRegisterSchema), UserController.registerCustomer);
 router.post("/login", validate(userLoginSchema), UserController.login);
+router.post("/forgot-password", UserController.forgotPassword);
+router.post("/verify-code", UserController.verifyCode);
+router.post("/change-password", UserController.changePasswordWithCode);
 
 // Staff creation (Admin only)
 router.post("/staff", authMiddleware, roleMiddleware(['Admin']), validate(userCreateSchema), UserController.create);

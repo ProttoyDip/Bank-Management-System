@@ -25,7 +25,7 @@ import {
 import { motion } from 'framer-motion';
 import api from "../../services/api";
 import { AccountType } from "../../types";
-import type { Account, User, ApiResponse } from "../../types";
+import type { Account, ApiResponse, Transaction } from "../../types";
 import { useAuth } from "../../context/AuthContext";
 
 export default function CustomerAccounts() {
@@ -61,19 +61,18 @@ export default function CustomerAccounts() {
     if (!authUser) return;
     try {
       setLoading(true);
-      const res = await api.get<ApiResponse<User>>(`/users/${authUser.id}`);
-      const userAccounts = res.data.data.accounts || [];
+      const res = await api.get<ApiResponse<Account[]>>(`/accounts/my-accounts`);
+      const userAccounts = res.data.data || [];
       setAccounts(userAccounts);
       
-      const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      const txPromises = userAccounts.map(acc => 
-        api.get<ApiResponse<any[]>>(`/transactions/account/${acc.id}?from=${oneWeekAgo}&limit=10`)
-          .then(r => r.data.data.length)
-      );
-      const txCounts = await Promise.all(txPromises);
+      const txRes = await api.get<ApiResponse<Transaction[]>>(`/transactions/my-transactions?limit=200`);
+      const txMap = new Map<number, number>();
+      (txRes.data.data || []).forEach((tx) => {
+        txMap.set(tx.accountId, (txMap.get(tx.accountId) || 0) + 1);
+      });
       const recentCounts: Record<number, number> = {};
-      userAccounts.forEach((acc, index) => {
-        recentCounts[acc.id] = txCounts[index];
+      userAccounts.forEach((acc) => {
+        recentCounts[acc.id] = txMap.get(acc.id) || 0;
       });
       setRecentTxCounts(recentCounts);
     } catch (err: any) {

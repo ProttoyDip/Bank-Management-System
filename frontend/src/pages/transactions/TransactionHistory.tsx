@@ -61,9 +61,8 @@ export default function TransactionHistory() {
         
         let response;
         
-        if (user?.role === UserRole.CUSTOMER && user.accounts && user.accounts.length > 0) {
-          const accountId = user.accounts[0].id;
-          response = await api.get<ApiResponse<Transaction[]>>(`/transactions/account/${accountId}`);
+        if (user?.role === UserRole.CUSTOMER) {
+          response = await api.get<ApiResponse<Transaction[]>>("/transactions/my-transactions?limit=500");
         } else {
           response = await api.get<ApiResponse<Transaction[]>>("/transactions");
         }
