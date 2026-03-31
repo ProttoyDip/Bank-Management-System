@@ -19,14 +19,27 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
-  const role = user?.role || 'Customer' as UserRole;
+  const role = user?.role as UserRole | undefined;
   const userId = user?.id;
 
   const getStorageKey = useCallback(() => {
-    return `notifications_${role.toLowerCase()}${userId ? `_${userId}` : ''}`;
+    const roleKey = role?.toLowerCase() || 'guest';
+    return `notifications_${roleKey}${userId ? `_${userId}` : ''}`;
   }, [role, userId]);
 
   const loadNotifications = useCallback(async () => {
+    if (!user || !role) {
+      setNotifications([]);
+      setLoading(false);
+      return;
+    }
+
+    if (role === 'Customer' && !userId) {
+      setNotifications([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       let fetched: Notification[];
@@ -96,10 +109,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   // Initial load and polling
   useEffect(() => {
-    if (role) {
+    if (user && role) {
       loadNotifications();
+    } else {
+      setNotifications([]);
+      setLoading(false);
     }
-  }, [loadNotifications, role]);
+  }, [loadNotifications, role, user]);
 
   // Poll every 30 seconds
   useEffect(() => {

@@ -4,18 +4,33 @@ import { Loan, LoanStatus, LoanType } from "../entity/Loan";
 import { User } from "../entity/User";
 import { Account } from "../entity/Account";
 import { generateLoanNumber, calculateEMI } from "../utils/helpers";
+import { AuthRequest } from "../middleware/auth";
 
 export class LoanController {
     // POST /api/loans — Create a new loan
-    static async create(req: Request, res: Response): Promise<void> {
+    static async create(req: AuthRequest, res: Response): Promise<void> {
         try {
             const loanRepository = getDataSource().getRepository(Loan);
             const userRepository = getDataSource().getRepository(User);
             const accountRepository = getDataSource().getRepository(Account);
-            const { userId, accountId, type, amount, interestRate, duration } = req.body;
+            const { type, amount, interestRate, duration } = req.body;
 
-            if (!userId || !accountId || !amount || !interestRate || !duration) {
-                res.status(400).json({ error: "userId, accountId, amount, interestRate, and duration are required" });
+            const tokenUserId = req.user?.id;
+            const tokenRole = req.user?.role;
+            let userId = Number(req.body.userId);
+            let accountId = Number(req.body.accountId);
+
+            if (!tokenUserId) {
+                res.status(401).json({ error: "Authentication required" });
+                return;
+            }
+
+            if (tokenRole === "Customer") {
+                userId = tokenUserId;
+            }
+
+            if (!amount || !interestRate || !duration) {
+                res.status(400).json({ error: "amount, interestRate, and duration are required" });
                 return;
             }
 
@@ -35,10 +50,27 @@ export class LoanController {
                 return;
             }
 
+            if (!accountId && tokenRole === "Customer") {
+                const defaultAccount = await accountRepository.findOne({
+                    where: { userId, isActive: true },
+                    order: { createdAt: "ASC" }
+                });
+                if (!defaultAccount) {
+                    res.status(404).json({ error: "No active account found for this user" });
+                    return;
+                }
+                accountId = defaultAccount.id;
+            }
+
             // Check if account exists
             const account = await accountRepository.findOneBy({ id: accountId });
             if (!account) {
                 res.status(404).json({ error: "Account not found" });
+                return;
+            }
+
+            if (tokenRole === "Customer" && account.userId !== tokenUserId) {
+                res.status(403).json({ error: "You can only apply loan against your own account" });
                 return;
             }
 

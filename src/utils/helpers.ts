@@ -8,6 +8,13 @@ export function generateReferenceNumber(): string {
     return "TXN" + Date.now().toString().slice(-9) + Math.floor(Math.random() * 100).toString().padStart(2, "0");
 }
 
+// Generate a unique account number (12 digits)
+export function generateAccountNumber(): string {
+    const base = Date.now().toString().slice(-8);
+    const suffix = Math.floor(Math.random() * 10000).toString().padStart(4, "0");
+    return `${base}${suffix}`;
+}
+
 // Calculate EMI using standard formula: EMI = P × r × (1+r)^n / ((1+r)^n - 1)
 // principal: loan amount, annualRate: annual interest rate (%), months: duration in months
 export function calculateEMI(principal: number, annualRate: number, months: number): number {

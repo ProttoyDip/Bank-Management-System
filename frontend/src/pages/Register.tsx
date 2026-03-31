@@ -72,7 +72,7 @@ export default function Register() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const [form, setForm] = useState({ firstName: "", lastName: "", phone: "", email: "", address: "", accountType: AccountType.SAVINGS, initialDeposit: "", password: "", confirmPassword: "" });
+  const [form, setForm] = useState({ firstName: "", lastName: "", phone: "", email: "", address: "", accountType: AccountType.SAVINGS, initialDeposit: "2000", password: "", confirmPassword: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [selectedRole, setSelectedRole] = useState("customer");
@@ -100,6 +100,12 @@ export default function Register() {
     e.preventDefault();
     setLoading(true);
     setError("");
+
+    if (selectedRole !== "customer") {
+      setError("Public registration is available for Customer accounts only.");
+      setLoading(false);
+      return;
+    }
     
     // Validate password
     if (!form.password) {
@@ -108,8 +114,32 @@ export default function Register() {
       return;
     }
     
-    if (form.password.length < 6) {
-      setError("Password must be at least 6 characters");
+    if (form.password.length < 8) {
+      setError("Password must be at least 8 characters");
+      setLoading(false);
+      return;
+    }
+
+    if (!/[A-Z]/.test(form.password)) {
+      setError("Password must contain at least one uppercase letter");
+      setLoading(false);
+      return;
+    }
+
+    if (!/[a-z]/.test(form.password)) {
+      setError("Password must contain at least one lowercase letter");
+      setLoading(false);
+      return;
+    }
+
+    if (!/[0-9]/.test(form.password)) {
+      setError("Password must contain at least one number");
+      setLoading(false);
+      return;
+    }
+
+    if (!/[^A-Za-z0-9]/.test(form.password)) {
+      setError("Password must contain at least one special character");
       setLoading(false);
       return;
     }
@@ -119,25 +149,33 @@ export default function Register() {
       setLoading(false);
       return;
     }
+
+    if (Number(form.initialDeposit) < 0 || Number.isNaN(Number(form.initialDeposit))) {
+      setError("Initial deposit must be a valid non-negative number");
+      setLoading(false);
+      return;
+    }
     
     try {
-      console.log("Creating user with:", { name: form.firstName + " " + form.lastName, email: form.email, phone: form.phone || undefined, address: form.address || undefined, password: form.password, role: getRoleFromId(selectedRole) });
-      const userRes = await api.post("/users", { name: form.firstName + " " + form.lastName, email: form.email, phone: form.phone || undefined, address: form.address || undefined, password: form.password, role: getRoleFromId(selectedRole) });
-      console.log("User created:", userRes.data);
-      const userId = userRes.data.data.id;
-      
-      console.log("Creating account for user:", userId, "with type:", form.accountType);
-      await api.post("/accounts", { userId, type: form.accountType });
-      
-      if (form.initialDeposit && Number(form.initialDeposit) > 0) {
-        const accRes = await api.get("/users/" + userId);
-        const accountId = accRes.data.data.accounts?.[0]?.id;
-        if (accountId) await api.post("/accounts/" + accountId + "/deposit", { amount: Number(form.initialDeposit) });
-      }
+      console.log("Creating user with:", { name: form.firstName + " " + form.lastName, email: form.email, phone: form.phone || undefined, address: form.address || undefined, password: form.password, role: UserRole.CUSTOMER, accountType: form.accountType, initialDeposit: Number(form.initialDeposit || "2000") });
+      await api.post("/users", {
+        name: form.firstName + " " + form.lastName,
+        email: form.email,
+        phone: form.phone || undefined,
+        address: form.address || undefined,
+        password: form.password,
+        role: UserRole.CUSTOMER,
+        accountType: form.accountType,
+        initialDeposit: Number(form.initialDeposit || "2000")
+      });
       navigate("/login");
     } catch (err: any) { 
       console.error("Registration error:", err);
-      setError(err.response?.data?.error || err.message || "Registration failed"); 
+      const validationDetails = err.response?.data?.details;
+      const detailMessage = Array.isArray(validationDetails) && validationDetails.length > 0
+        ? validationDetails[0]?.message
+        : null;
+      setError(detailMessage || err.response?.data?.error || err.message || "Registration failed"); 
     } 
     finally { setLoading(false); }
   };

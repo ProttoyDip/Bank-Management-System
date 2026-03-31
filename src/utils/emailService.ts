@@ -21,16 +21,25 @@ if (missingVars.length > 0) {
   process.exit(1);
 }
 
-console.log("✅ SMTP config loaded:", `${process.env.SMTP_EMAIL} (validated)`);
+console.log("SMTP config loaded:", `${process.env.SMTP_EMAIL} (validated)`);
+
+const smtpHost = process.env.SMTP_HOST?.trim();
+const smtpPort = Number(process.env.SMTP_PORT);
+const smtpUser = process.env.SMTP_EMAIL?.trim();
+const rawSmtpPass = process.env.SMTP_PASSWORD || "";
+const smtpPass = rawSmtpPass.trim().replace(/\s+/g, "");
+if (rawSmtpPass !== smtpPass) {
+  console.warn("SMTP password contained spaces; normalized for auth.");
+}
 
 // -------------------- Create transporter --------------------
 export const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT),
+  host: smtpHost,
+  port: smtpPort,
   secure: process.env.SMTP_SECURE === "true",
   auth: {
-    user: process.env.SMTP_EMAIL,
-    pass: process.env.SMTP_PASSWORD,
+    user: smtpUser,
+    pass: smtpPass,
   },
 });
 

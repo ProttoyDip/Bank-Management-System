@@ -5,11 +5,14 @@ import { authMiddleware } from "../middleware/auth";
 const router = Router();
 
 // Account CRUD
-router.post("/", AccountController.create);
-router.get("/", AccountController.getAll);
-router.get("/by-account-number/:accountNumber", AccountController.getByAccountNumber);
-router.get("/user/:userId", AccountController.getByUserId);
-router.get("/:id", AccountController.getById);
+router.post("/", authMiddleware, AccountController.create);
+router.get("/", authMiddleware, AccountController.getAll);
+router.get("/my-account", authMiddleware, AccountController.getMyAccount);
+router.get("/my-accounts", authMiddleware, AccountController.getMyAccounts);
+router.get("/search", authMiddleware, AccountController.searchByAccountNumber);
+router.get("/by-account-number/:accountNumber", authMiddleware, AccountController.getByAccountNumber);
+router.get("/user/:userId", authMiddleware, AccountController.getByUserId);
+router.get("/:id", authMiddleware, AccountController.getById);
 
 // Transactions
 router.post("/:id/deposit", authMiddleware, AccountController.deposit);

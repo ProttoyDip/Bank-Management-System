@@ -58,6 +58,16 @@ export const userCreateSchema = z.discriminatedUnion('role', [
   })
 ]);
 
+export const customerRegisterSchema = z.object({
+  name: z.string().min(2).max(100),
+  email: z.string().email().toLowerCase(),
+  phone: z.string().max(20).optional(),
+  address: z.string().max(255).optional(),
+  password: strongPassword,
+  accountType: z.enum(['Savings', 'Current', 'Fixed Deposit', 'Loan Account']).optional(),
+  initialDeposit: z.coerce.number().min(0).optional().default(2000),
+});
+
 export const userLoginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
