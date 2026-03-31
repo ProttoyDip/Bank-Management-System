@@ -280,3 +280,71 @@ export enum NotificationType {
   WARNING = "Warning",
 }
 
+export interface EmployeeDashboardStats {
+  totalCustomers: number;
+  totalAccounts: number;
+  totalTransactionsToday: number;
+  pendingLoanApplications: number;
+  flaggedTransactions: number;
+}
+
+export interface KycRequest {
+  id: number;
+  userId: number;
+  status: string;
+  documentType?: string | null;
+  documentRef?: string | null;
+  remarks?: string | null;
+  verifiedByEmployeeId?: number | null;
+  verifiedAt?: string | null;
+  user?: User;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Ticket {
+  id: number;
+  userId: number;
+  message: string;
+  status: string;
+  response?: string | null;
+  resolvedByEmployeeId?: number | null;
+  resolvedAt?: string | null;
+  user?: User;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ActivityLog {
+  id: number;
+  employeeId: number;
+  action: string;
+  details?: string | null;
+  createdAt: string;
+}
+
+export interface EmployeeReportsResponse {
+  dailyReport: {
+    date: string;
+    totalCount: number;
+    totalAmount: number;
+    byType: { deposit: number; withdraw: number; transfer: number };
+  };
+  monthlySummary: {
+    month: string;
+    totalCount: number;
+    totalAmount: number;
+    deposits: number;
+    withdrawals: number;
+    transfers: number;
+  };
+  loanStatistics: {
+    totalApplications: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+    totalLoanAmount: number;
+  };
+  trendLast7Days: Array<{ date: string; totalCount: number; totalAmount: number }>;
+}
+

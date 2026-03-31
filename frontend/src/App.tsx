@@ -39,7 +39,12 @@ import CustomerAccounts from "./pages/customers/CustomerAccounts";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
 import { UserRole } from "./types";
-import React, { useEffect } from "react";
+import EmployeeAccounts from "./pages/employee/EmployeeAccounts";
+import EmployeeTransactions from "./pages/employee/EmployeeTransactions";
+import EmployeeLoans from "./pages/employee/EmployeeLoans";
+import EmployeeKyc from "./pages/employee/EmployeeKyc";
+import EmployeeSupport from "./pages/employee/EmployeeSupport";
+import EmployeeReports from "./pages/employee/EmployeeReports";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 function ThemedApp() {
@@ -81,10 +86,12 @@ function ThemedApp() {
                   <Route element={<EmployeeLayout />}>
                     <Route index element={<Navigate to="dashboard" replace />} />
                     <Route path="dashboard" element={<EmployeeDashboard />} />
-                    <Route path="customers" element={<CustomerList />} />
-                    <Route path="accounts" element={<Accounts />} />
-                    <Route path="transactions" element={<TransactionHistory />} />
-                    <Route path="loans" element={<LoanList />} />
+                    <Route path="accounts" element={<EmployeeAccounts />} />
+                    <Route path="transactions" element={<EmployeeTransactions />} />
+                    <Route path="loans" element={<EmployeeLoans />} />
+                    <Route path="kyc" element={<EmployeeKyc />} />
+                    <Route path="reports" element={<EmployeeReports />} />
+                    <Route path="support" element={<EmployeeSupport />} />
                     <Route path="settings" element={<Settings />} />
                   </Route>
                 </Route>

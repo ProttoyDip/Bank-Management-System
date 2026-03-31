@@ -6,6 +6,9 @@ import { Loan } from "./entity/Loan"
 import { Transaction } from "./entity/Transaction"
 import { Employee } from "./entity/Employee"
 import { Branch } from "./entity/Branch"
+import { KycRequest } from "./entity/KycRequest"
+import { Ticket } from "./entity/Ticket"
+import { ActivityLog } from "./entity/ActivityLog"
 import * as dotenv from "dotenv"
 
 dotenv.config()
@@ -44,7 +47,7 @@ const localConfig: DataSourceOptions = getDBConfig();
 const baseOptions = {
     synchronize: false, // Production ready: use manual migrations
     logging: true,
-    entities: [User, Account, Loan, Transaction, Employee, Branch],
+    entities: [User, Account, Loan, Transaction, Employee, Branch, KycRequest, Ticket, ActivityLog],
 
     migrations: [],
     subscribers: [],
