@@ -568,18 +568,15 @@ export class EmployeeOpsController {
             loan.remarks = remarks || loan.remarks;
             loan.reviewedByEmployeeId = req.user!.employeeId!;
             loan.reviewedAt = new Date();
-            if (status === LoanStatus.APPROVED) {
-                const startDate = new Date();
-                const endDate = new Date(startDate);
-                endDate.setMonth(endDate.getMonth() + loan.duration);
-                loan.startDate = startDate;
-                loan.endDate = endDate;
+            if (status === LoanStatus.UNDER_REVIEW_ADMIN) {
+                loan.startDate = null;
+                loan.endDate = null;
             }
 
             const updated = await loanRepo.save(loan);
             await logEmployeeActivity(
                 req.user!.employeeId!,
-                status === LoanStatus.APPROVED ? "Approved Loan" : "Rejected Loan",
+                status === LoanStatus.UNDER_REVIEW_ADMIN ? "Forwarded Loan To Admin Review" : "Rejected Loan",
                 `Loan ${loan.loanNumber}`
             );
 
@@ -591,7 +588,7 @@ export class EmployeeOpsController {
     }
 
     static async approveLoan(req: AuthRequest, res: Response): Promise<Response> {
-        return EmployeeOpsController.updateLoanStatus(req, res, LoanStatus.APPROVED);
+        return EmployeeOpsController.updateLoanStatus(req, res, LoanStatus.UNDER_REVIEW_ADMIN);
     }
 
     static async rejectLoan(req: AuthRequest, res: Response): Promise<Response> {

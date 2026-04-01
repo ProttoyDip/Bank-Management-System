@@ -7,6 +7,20 @@ interface User {
   email: string;
   role: UserRole;
   accounts?: Account[];
+  phone?: string | null;
+  address?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  adminId?: string;
+  authCode?: string;
+  accessLevel?: string;    // "Super Admin" or "Manager Admin"
+  permissions?: string;    // JSON-encoded permissions
+  department?: string;
+  officeLocation?: string;
+  nationalId?: string;
+  twoFactorEnabled?: boolean;
+  profilePhoto?: string;
+  status?: string;
 }
 
 interface AuthContextType {

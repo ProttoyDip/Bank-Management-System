@@ -13,6 +13,7 @@ import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import VerifyCode from "./pages/VerifyCode";
 import ChangePassword from "./pages/ChangePassword";
+import InviteAccept from "./pages/InviteAccept";
 import AdminDashboard from "./pages/dashboards/AdminDashboard";
 import EmployeeDashboard from "./pages/dashboards/EmployeeDashboard";
 import CustomerDashboard from "./pages/dashboards/CustomerDashboard";
@@ -62,6 +63,7 @@ function ThemedApp() {
                 <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
                 <Route path="/verify-code" element={<PublicRoute><VerifyCode /></PublicRoute>} />
                 <Route path="/change-password" element={<PublicRoute><ChangePassword /></PublicRoute>} />
+                <Route path="/accept-invite" element={<PublicRoute><InviteAccept /></PublicRoute>} />
 
                 <Route path="/admin" element={<ProtectedRoute allowedRoles={[UserRole.ADMIN]} />}>
                   <Route element={<AdminLayout />}>

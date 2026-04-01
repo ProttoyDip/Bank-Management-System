@@ -15,13 +15,12 @@ const requiredEnvVars = [
 const missingVars = requiredEnvVars.filter(
   (varName) => !process.env[varName] || process.env[varName]?.trim() === ""
 );
-if (missingVars.length > 0) {
-  console.warn(`⚠️ Missing SMTP env vars: ${missingVars.join(", ")}. Email disabled.`);
-
-  process.exit(1);
+const isEmailConfigured = missingVars.length === 0;
+if (!isEmailConfigured) {
+  console.warn(`⚠️ Missing SMTP env vars: ${missingVars.join(", ")}. Email sending is disabled.`);
+} else {
+  console.log("SMTP config loaded:", `${process.env.SMTP_EMAIL} (validated)`);
 }
-
-console.log("SMTP config loaded:", `${process.env.SMTP_EMAIL} (validated)`);
 
 const smtpHost = process.env.SMTP_HOST?.trim();
 const smtpPort = Number(process.env.SMTP_PORT);
@@ -33,24 +32,28 @@ if (rawSmtpPass !== smtpPass) {
 }
 
 // -------------------- Create transporter --------------------
-export const transporter = nodemailer.createTransport({
-  host: smtpHost,
-  port: smtpPort,
-  secure: process.env.SMTP_SECURE === "true",
-  auth: {
-    user: smtpUser,
-    pass: smtpPass,
-  },
-});
+export const transporter = isEmailConfigured
+  ? nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: process.env.SMTP_SECURE === "true",
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+    })
+  : nodemailer.createTransport({ jsonTransport: true });
 
 // -------------------- Verify SMTP connection --------------------
-transporter.verify((error: Error | null, success: boolean) => {
-  if (error) {
-    console.error("❌ SMTP connection failed:", error);
-  } else {
-    console.log("✅ SMTP server is ready to send emails");
-  }
-});
+if (isEmailConfigured) {
+  transporter.verify((error: Error | null, success: boolean) => {
+    if (error) {
+      console.error("❌ SMTP connection failed:", error);
+    } else {
+      console.log("✅ SMTP server is ready to send emails");
+    }
+  });
+}
 
 /**
  * Shared Styles for the "Medium Box" Layout
@@ -139,6 +142,83 @@ export const sendWelcomeEmail = async (
     return false;
   }
 };
+
+export const sendEmployeeInviteEmail = async (
+  email: string,
+  inviteData: {
+    recipientName?: string;
+    invitedBy?: string;
+    role?: string;
+    expiresAt?: string;
+    inviteUrl?: string;
+  }
+): Promise<boolean> => {
+  if (!isEmailConfigured) {
+    console.warn(`⚠️ Invite email skipped (SMTP not configured): ${email}`);
+    return false;
+  }
+
+  try {
+    await transporter.sendMail({
+      from: `"BankPro" <${process.env.SMTP_EMAIL}>`,
+      to: email,
+      subject: "You're Invited to Join BankPro as an Employee",
+      html: `
+      ${BOX_LAYOUT_START}
+        <h2 style="color:#10b981; margin-top:0;">Employee Invitation</h2>
+        <p>You have been invited to join <strong>BankPro</strong> as an employee.</p>
+
+        <div style="background:#ecfeff; border:1px solid #a5f3fc; color:#0e7490; padding:16px; border-radius:10px; margin:20px 0;">
+          <p style="margin: 0 0 8px 0;"><strong>Role:</strong> ${inviteData.role || "Employee"}</p>
+          ${inviteData.expiresAt ? `<p style="margin:0;"><strong>Expires:</strong> ${new Date(inviteData.expiresAt).toLocaleString()}</p>` : ""}
+        </div>
+
+        ${inviteData.inviteUrl ? `
+          <div style="margin: 24px 0; text-align: center;">
+            <a href="${inviteData.inviteUrl}" style="display:inline-block; background:#059669; color:#ffffff; text-decoration:none; font-weight:700; padding:12px 20px; border-radius:8px;">Accept Invite</a>
+          </div>
+          <p style="font-size:13px; color:#6b7280;">If the button does not work, open this link in your browser:</p>
+          <p style="font-size:13px; word-break:break-all;"><a href="${inviteData.inviteUrl}">${inviteData.inviteUrl}</a></p>
+        ` : ""}
+
+        <p style="font-size:14px; color:#6b7280;">Please complete onboarding with this invited email address.</p>
+      ${BOX_LAYOUT_END}
+      `,
+      text: `You have been invited to join BankPro as an employee.${inviteData.expiresAt ? ` Invite expires: ${inviteData.expiresAt}.` : ""}${inviteData.inviteUrl ? ` Accept invite: ${inviteData.inviteUrl}` : ""}`,
+    });
+
+    return true;
+  } catch (error) {
+    console.error("❌ Error sending employee invite email:", error);
+    return false;
+  }
+};
+
+export async function getEmailDiagnostics() {
+  const diagnostics = {
+    configured: isEmailConfigured,
+    missingVars,
+    host: smtpHost || null,
+    port: Number.isFinite(smtpPort) ? smtpPort : null,
+    secure: process.env.SMTP_SECURE === "true",
+    fromEmail: smtpUser || null,
+    verified: false,
+    verifyError: null as string | null,
+  };
+
+  if (!isEmailConfigured) {
+    return diagnostics;
+  }
+
+  try {
+    await transporter.verify();
+    diagnostics.verified = true;
+  } catch (error) {
+    diagnostics.verifyError = error instanceof Error ? error.message : "Unknown SMTP verification error";
+  }
+
+  return diagnostics;
+}
 
 // -------------------- TRANSACTION EMAIL --------------------
 export const sendTransactionEmail = async (

@@ -5,6 +5,8 @@ interface TokenPayload {
     email: string;
     role: string;
     user_id?: string;
+    accessLevel?: string;  // "Super Admin" or "Manager Admin"
+    permissions?: string;  // JSON-encoded permission flags
 }
 
 /**
@@ -27,6 +29,8 @@ export function generateToken(user: TokenPayload): string {
             user_id: user.user_id,
             email: user.email,
             role: user.role,
+            accessLevel: user.accessLevel,
+            permissions: user.permissions,
         },
         secret,
         options
