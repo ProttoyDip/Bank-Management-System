@@ -20,6 +20,7 @@ export enum LoanType {
 
 export enum LoanStatus {
     PENDING = "Pending",
+    UNDER_REVIEW_ADMIN = "Under Review (Admin)",
     APPROVED = "Approved",
     REJECTED = "Rejected",
     ACTIVE = "Active",

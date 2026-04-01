@@ -168,82 +168,16 @@ export class LoanController {
 
     // PUT /api/loans/:id/approve — Approve a pending loan
     static async approve(req: Request, res: Response): Promise<void> {
-        try {
-            const loanRepository = getDataSource().getRepository(Loan);
-            const id = parseInt(req.params.id as string);
-
-            if (isNaN(id)) {
-                res.status(400).json({ error: "Invalid loan ID" });
-                return;
-            }
-
-            const loan = await loanRepository.findOneBy({ id });
-
-            if (!loan) {
-                res.status(404).json({ error: "Loan not found" });
-                return;
-            }
-
-            if (loan.status !== LoanStatus.PENDING) {
-                res.status(400).json({ error: "Only pending loans can be approved" });
-                return;
-            }
-
-            const startDate = new Date();
-            const endDate = new Date(startDate);
-            endDate.setMonth(endDate.getMonth() + loan.duration);
-
-            loan.status = LoanStatus.APPROVED;
-            loan.startDate = startDate;
-            loan.endDate = endDate;
-
-            const updatedLoan = await loanRepository.save(loan);
-
-            res.json({
-                message: "Loan approved successfully",
-                data: updatedLoan,
-            });
-        } catch (error) {
-            console.error("Error approving loan:", error);
-            res.status(500).json({ error: "Internal server error" });
-        }
+        res.status(403).json({
+            error: "Direct loan approval is disabled. Use employee review then admin approval flow.",
+        });
     }
 
     // PUT /api/loans/:id/reject — Reject a pending loan
     static async reject(req: Request, res: Response): Promise<void> {
-        try {
-            const loanRepository = getDataSource().getRepository(Loan);
-            const id = parseInt(req.params.id as string);
-
-            if (isNaN(id)) {
-                res.status(400).json({ error: "Invalid loan ID" });
-                return;
-            }
-
-            const loan = await loanRepository.findOneBy({ id });
-
-            if (!loan) {
-                res.status(404).json({ error: "Loan not found" });
-                return;
-            }
-
-            if (loan.status !== LoanStatus.PENDING) {
-                res.status(400).json({ error: "Only pending loans can be rejected" });
-                return;
-            }
-
-            loan.status = LoanStatus.REJECTED;
-
-            const updatedLoan = await loanRepository.save(loan);
-
-            res.json({
-                message: "Loan rejected",
-                data: updatedLoan,
-            });
-        } catch (error) {
-            console.error("Error rejecting loan:", error);
-            res.status(500).json({ error: "Internal server error" });
-        }
+        res.status(403).json({
+            error: "Direct loan rejection is disabled. Use employee review workflow.",
+        });
     }
 }
 

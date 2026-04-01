@@ -38,14 +38,18 @@ export async function login(email: string, password: string): Promise<LoginResul
             id: -1,
             user_id: "ADMIN_STATIC_ID",
             email: adminEmail,
-            role: "ADMIN"
+            role: "ADMIN",
+            accessLevel: "Super Admin",  // Static admin is always Super Admin
+            permissions: JSON.stringify({ inviteEmployees: true, updateSettings: true, createAdmin: true })
         });
 
         const adminUser = {
             id: -1,
             name: "System Administrator",
             email: adminEmail,
-            role: "ADMIN"
+            role: "ADMIN",
+            accessLevel: "Super Admin",
+            permissions: JSON.stringify({ inviteEmployees: true, updateSettings: true, createAdmin: true })
         } as User;
 
         return {
@@ -57,7 +61,7 @@ export async function login(email: string, password: string): Promise<LoginResul
 
     const userRepository = getDataSource().getRepository(User);
 
-    // Find user by email (select only needed fields to avoid nullable admin columns)
+    // Find user by email (select admin tier columns)
     const user = await userRepository.findOne({ 
         where: { email: normalizedEmail },
         select: { 
@@ -66,7 +70,9 @@ export async function login(email: string, password: string): Promise<LoginResul
             password: true, 
             role: true,
             name: true,
-            status: true 
+            status: true,
+            accessLevel: true,
+            permissions: true
         } 
     });
 
@@ -87,11 +93,13 @@ export async function login(email: string, password: string): Promise<LoginResul
         };
     }
 
-    // Generate JWT token
+    // Generate JWT token with admin tier claims
     const token = generateToken({
         id: user.id,
         email: user.email,
-        role: user.role || "Customer"
+        role: user.role || "Customer",
+        accessLevel: user.accessLevel || undefined,
+        permissions: user.permissions || undefined
     });
 
     return {

@@ -25,7 +25,6 @@ export function errorHandler(
     }
 
     res.status(500).json({
-        error: "Something went wrong",
-        message: process.env.NODE_ENV === "development" ? err.message : undefined,
+        message: err.message || "Internal Server Error",
     });
 }

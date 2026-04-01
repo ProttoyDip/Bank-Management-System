@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import { FindOptionsWhere, ILike } from "typeorm";
 import { z } from "zod";
-import { verifyAdminRole, verifyToken, AuthRequest } from "../middleware/auth";
+import { verifyAdminRole, verifyToken, AuthRequest, requireSuperAdmin } from "../middleware/auth";
 import { getDataSource } from "../data-source";
 import { User } from "../entity/User";
 import { Employee } from "../entity/Employee";
@@ -13,6 +13,10 @@ import { ActivityLog } from "../entity/ActivityLog";
 import { EmployeeInvite } from "../entity/EmployeeInvite";
 import { AdminSetting } from "../entity/AdminSetting";
 import { Ticket, TicketStatus } from "../entity/Ticket";
+import { hashPassword } from "../utils/hashPassword";
+import { generateAdminId } from "../utils/helpers";
+import { sendEmployeeInviteEmail, getEmailDiagnostics } from "../utils/emailService";
+import { generateInviteToken } from "../utils/inviteToken";
 
 const router = Router();
 const CUSTOMER_ROLE = "Customer";
@@ -70,6 +74,18 @@ const settingsSchema = z.object({
     ).min(1),
 });
 
+const createAdminSchema = z.object({
+    name: z.string().trim().min(2).max(100),
+    email: z.email(),
+    password: z.string().min(8),
+    phone: z.string().trim().max(20).optional(),
+    nationalId: z.string().trim().min(5).max(50).optional(),
+    department: z.string().trim().min(2).max(100).optional(),
+    officeLocation: z.string().trim().min(2).max(100).optional(),
+    accessLevel: z.enum(["Super Admin", "Manager Admin"]).default("Manager Admin"),
+    permissions: z.array(z.string().trim().min(1)).optional(),
+});
+
 function getAdminActorId(req: AuthRequest): number {
     return Number(req.user?.id || 0);
 }
@@ -90,6 +106,11 @@ async function logAdminAction(req: AuthRequest, action: string, details?: string
 
 function sendValidationError(res: Response, message: string) {
     return res.status(400).json({ error: message });
+}
+
+function buildInviteUrl(token: string): string {
+    const frontendBase = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
+    return `${frontendBase}/accept-invite?token=${encodeURIComponent(token)}`;
 }
 
 router.get("/session", (req, res) => {
@@ -161,7 +182,7 @@ router.get("/dashboard-stats", async (_req, res) => {
     }
 });
 
-router.post("/invite-employee", async (req, res) => {
+router.post("/invite-employee", requireSuperAdmin, async (req, res) => {
     const { email } = req.body;
 
     if (!email || typeof email !== 'string' || !email.includes('@')) {
@@ -197,16 +218,90 @@ router.post("/invite-employee", async (req, res) => {
         });
 
         const savedInvite = await inviteRepository.save(invite);
+        const inviteToken = generateInviteToken({
+            inviteId: savedInvite.id,
+            email: emailLower,
+        });
+        const inviteUrl = buildInviteUrl(inviteToken);
+
+        const emailSent = await sendEmployeeInviteEmail(emailLower, {
+            role: "Employee",
+            expiresAt: savedInvite.expiresAt ? savedInvite.expiresAt.toISOString() : undefined,
+            inviteUrl,
+        });
         await logAdminAction(req, "INVITE_EMPLOYEE", `Employee invite sent to ${emailLower}`);
 
-        res.status(201).json({ success: true, data: savedInvite, message: "Employee invitation sent successfully" });
+        res.status(201).json({
+            success: true,
+            data: savedInvite,
+            emailSent,
+            message: emailSent
+                ? "Employee invitation sent successfully"
+                : "Employee invite created, but email could not be sent. Check SMTP configuration.",
+        });
     } catch (error) {
         console.error("Invite employee error:", error);
         res.status(500).json({ success: false, message: "Failed to send employee invite" });
     }
 });
 
-router.get("/invites", async (_req, res) => {
+router.post("/invites/:id/resend", requireSuperAdmin, async (req, res) => {
+    try {
+        const inviteRepository = getDataSource().getRepository(EmployeeInvite);
+        const invite = await inviteRepository.findOne({ where: { id: Number(req.params.id) } });
+
+        if (!invite) {
+            return res.status(404).json({ success: false, message: "Invite not found" });
+        }
+
+        if (String(invite.status).toLowerCase() !== "pending") {
+            return res.status(400).json({ success: false, message: "Only pending invites can be resent" });
+        }
+
+        if (invite.expiresAt && invite.expiresAt.getTime() < Date.now()) {
+            invite.expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+            await inviteRepository.save(invite);
+        }
+
+        const inviteToken = generateInviteToken({
+            inviteId: invite.id,
+            email: invite.email,
+        });
+
+        const emailSent = await sendEmployeeInviteEmail(invite.email, {
+            recipientName: invite.name,
+            role: invite.position || "Employee",
+            expiresAt: invite.expiresAt ? invite.expiresAt.toISOString() : undefined,
+            inviteUrl: buildInviteUrl(inviteToken),
+        });
+
+        await logAdminAction(req, "RESEND_EMPLOYEE_INVITE", `Employee invite resent to ${invite.email}`);
+
+        return res.json({
+            success: true,
+            emailSent,
+            data: invite,
+            message: emailSent
+                ? "Invite email resent successfully"
+                : "Invite exists, but email could not be sent. Check SMTP configuration.",
+        });
+    } catch (error) {
+        console.error("Resend invite error:", error);
+        return res.status(500).json({ success: false, message: "Failed to resend invite" });
+    }
+});
+
+router.get("/smtp-diagnostics", requireSuperAdmin, async (_req, res) => {
+    try {
+        const diagnostics = await getEmailDiagnostics();
+        res.json({ success: true, data: diagnostics });
+    } catch (error) {
+        console.error("SMTP diagnostics error:", error);
+        res.status(500).json({ success: false, message: "Failed to fetch SMTP diagnostics" });
+    }
+});
+
+router.get("/invites", requireSuperAdmin, async (_req, res) => {
     try {
         const invites = await getDataSource().getRepository(EmployeeInvite).find({
             order: { createdAt: "DESC" },
@@ -219,7 +314,7 @@ router.get("/invites", async (_req, res) => {
     }
 });
 
-router.delete("/invites/:id", async (req, res) => {
+router.delete("/invites/:id", requireSuperAdmin, async (req, res) => {
     try {
         const inviteRepository = getDataSource().getRepository(EmployeeInvite);
         const invite = await inviteRepository.findOne({ where: { id: Number(req.params.id) } });
@@ -252,7 +347,7 @@ router.get("/employees", async (_req, res) => {
     }
 });
 
-router.patch("/employees/:id/status", async (req, res) => {
+router.patch("/employees/:id/status", requireSuperAdmin, async (req, res) => {
     const { status } = req.body;
     const normalizedStatus = String(status || '').toUpperCase();
     const isActive = normalizedStatus === 'ACTIVE';
@@ -472,10 +567,16 @@ router.patch("/transactions/:id/flag", async (req, res) => {
 });
 
 router.post("/transactions/:id/reverse", async (req, res) => {
-    const parsed = reverseTransactionSchema.safeParse(req.body);
+    const { reason } = req.body || {};
+
+    if (!reason || typeof reason !== "string" || !reason.trim()) {
+        return res.status(400).json({ success: false, message: "Reason is required" });
+    }
+
+    const parsed = reverseTransactionSchema.safeParse({ reason });
 
     if (!parsed.success) {
-        return sendValidationError(res, "Invalid reverse transaction payload");
+        return res.status(400).json({ success: false, message: "Reason must be between 3 and 255 characters" });
     }
 
     try {
@@ -561,24 +662,24 @@ router.post("/transactions/:id/reverse", async (req, res) => {
     } catch (error) {
         if (error instanceof Error) {
             if (error.message === "TRANSACTION_NOT_FOUND") {
-                return res.status(404).json({ error: "Transaction not found" });
+                return res.status(404).json({ success: false, message: "Transaction not found" });
             }
 
             if (error.message === "ACCOUNT_NOT_FOUND") {
-                return res.status(404).json({ error: "Account not found" });
+                return res.status(404).json({ success: false, message: "Account not found" });
             }
 
             if (error.message === "TRANSACTION_ALREADY_REVERSED") {
-                return res.status(409).json({ error: "Transaction already reversed" });
+                return res.status(409).json({ success: false, message: "Transaction already reversed" });
             }
 
             if (error.message === "INSUFFICIENT_BALANCE_FOR_REVERSAL") {
-                return res.status(400).json({ error: "Insufficient account balance to reverse this transaction" });
+                return res.status(400).json({ success: false, message: "Insufficient account balance to reverse this transaction" });
             }
         }
 
-        console.error("Reverse transaction error:", error);
-        res.status(500).json({ error: "Failed to reverse transaction" });
+        console.log("Reverse error:", error);
+        res.status(500).json({ success: false, message: "Failed to reverse transaction" });
     }
 });
 
@@ -597,7 +698,11 @@ router.get("/loans", async (_req, res) => {
 });
 
 router.put("/loans/:id/approve", async (req, res) => {
-    const { remarks } = req.body;
+    const { remarks } = req.body || {};
+
+    if (!remarks || typeof remarks !== "string" || !remarks.trim()) {
+        return res.status(400).json({ success: false, message: "Remarks is required" });
+    }
 
     try {
         const dataSource = getDataSource();
@@ -614,8 +719,8 @@ router.put("/loans/:id/approve", async (req, res) => {
                 throw new Error("LOAN_NOT_FOUND");
             }
 
-            if (loan.status !== LoanStatus.PENDING) {
-                throw new Error("LOAN_NOT_PENDING");
+            if (loan.status !== LoanStatus.UNDER_REVIEW_ADMIN) {
+                throw new Error("LOAN_NOT_READY_FOR_ADMIN_APPROVAL");
             }
 
             const account = await accountRepository.findOne({ where: { id: loan.accountId } });
@@ -628,7 +733,7 @@ router.put("/loans/:id/approve", async (req, res) => {
             await accountRepository.save(account);
 
             loan.status = LoanStatus.APPROVED;
-            loan.remarks = remarks || loan.remarks || null;
+            loan.remarks = remarks.trim();
             loan.reviewedByEmployeeId = actorId;
             loan.reviewedAt = new Date();
             loan.startDate = new Date();
@@ -667,6 +772,10 @@ router.put("/loans/:id/approve", async (req, res) => {
                 return res.status(400).json({ success: false, message: "Only pending loans can be approved" });
             }
 
+            if (error.message === "LOAN_NOT_READY_FOR_ADMIN_APPROVAL") {
+                return res.status(400).json({ success: false, message: "Loan must be employee-reviewed before admin approval" });
+            }
+
             if (error.message === "ACCOUNT_NOT_FOUND") {
                 return res.status(404).json({ success: false, message: "Linked account not found" });
             }
@@ -678,7 +787,7 @@ router.put("/loans/:id/approve", async (req, res) => {
 });
 
 router.put("/loans/:id/reject", async (req, res) => {
-    const { remarks } = req.body;
+    const { remarks } = req.body || {};
 
     try {
         const loanRepository = getDataSource().getRepository(Loan);
@@ -688,12 +797,12 @@ router.put("/loans/:id/reject", async (req, res) => {
             return res.status(404).json({ success: false, message: "Loan not found" });
         }
 
-        if (loan.status !== LoanStatus.PENDING) {
-            return res.status(400).json({ success: false, message: "Only pending loans can be rejected" });
+        if (loan.status !== LoanStatus.UNDER_REVIEW_ADMIN) {
+            return res.status(400).json({ success: false, message: "Loan must be employee-reviewed before admin decision" });
         }
 
         loan.status = LoanStatus.REJECTED;
-        loan.remarks = remarks || loan.remarks || null;
+        loan.remarks = typeof remarks === "string" && remarks.trim() ? remarks.trim() : (loan.remarks || null);
         loan.reviewedByEmployeeId = getAdminActorId(req);
         loan.reviewedAt = new Date();
 
@@ -853,7 +962,7 @@ router.get("/settings", async (_req, res) => {
     }
 });
 
-router.put("/settings", async (req, res) => {
+router.put("/settings", requireSuperAdmin, async (req, res) => {
     const parsed = settingsSchema.safeParse(req.body);
 
     if (!parsed.success) {
@@ -887,6 +996,61 @@ router.put("/settings", async (req, res) => {
     } catch (error) {
         console.error("Update settings error:", error);
         res.status(500).json({ error: "Failed to update settings" });
+    }
+});
+
+router.post("/create-admin", requireSuperAdmin, async (req, res) => {
+    const parsed = createAdminSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+        return sendValidationError(res, "Invalid create-admin payload");
+    }
+
+    try {
+        const userRepository = getDataSource().getRepository(User);
+        const email = parsed.data.email.trim().toLowerCase();
+
+        const existing = await userRepository.findOne({ where: { email } });
+        if (existing) {
+            return res.status(409).json({ success: false, message: "A user with this email already exists" });
+        }
+
+        const hashedPassword = await hashPassword(parsed.data.password);
+        const admin = userRepository.create({
+            name: parsed.data.name,
+            email,
+            phone: parsed.data.phone || null,
+            nationalId: parsed.data.nationalId || null,
+            department: parsed.data.department || null,
+            officeLocation: parsed.data.officeLocation || null,
+            password: hashedPassword,
+            role: "Admin",
+            status: "Active",
+            adminId: generateAdminId(),
+            accessLevel: parsed.data.accessLevel,
+            permissions: JSON.stringify(parsed.data.permissions || []),
+            createdBy: getAdminActorId(req),
+        } as Partial<User>);
+
+        const saved = await userRepository.save(admin);
+
+        await logAdminAction(req, "CREATE_ADMIN", `Created admin account for ${saved.email}`);
+
+        res.status(201).json({
+            success: true,
+            message: "Admin created successfully",
+            data: {
+                id: saved.id,
+                name: saved.name,
+                email: saved.email,
+                role: saved.role,
+                accessLevel: saved.accessLevel,
+                adminId: saved.adminId,
+            },
+        });
+    } catch (error) {
+        console.error("Create admin error:", error);
+        res.status(500).json({ success: false, message: "Failed to create admin" });
     }
 });
 

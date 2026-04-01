@@ -11,6 +11,8 @@ export interface AuthRequest extends Request {
         user_id?: string;
         employeeId?: number;
         employeeCode?: string;
+        accessLevel?: string;      // "Super Admin" or "Manager Admin"
+        permissions?: string;      // JSON-encoded permissions
     };
 }
 
@@ -104,4 +106,22 @@ export function roleMiddleware(allowedRoles: string[]) {
 
         next();
     };
+}
+
+/**
+ * Middleware to check if user is a Super Admin
+ */
+export function requireSuperAdmin(req: AuthRequest, res: Response, next: NextFunction): void {
+    if (!req.user) {
+        res.status(401).json({ error: "Authentication required" });
+        return;
+    }
+
+    const accessLevel = String(req.user.accessLevel || "").trim();
+    if (accessLevel !== "Super Admin") {
+        res.status(403).json({ error: "Super Admin access required" });
+        return;
+    }
+
+    next();
 }

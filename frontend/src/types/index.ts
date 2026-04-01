@@ -12,7 +12,8 @@ export interface User {
   updatedAt: string;
   adminId?: string;
   authCode?: string;
-  accessLevel?: string;
+  accessLevel?: string;    // "Super Admin" or "Manager Admin"
+  permissions?: string;    // JSON-encoded permissions
   department?: string;
   officeLocation?: string;
   nationalId?: string;
@@ -77,6 +78,7 @@ export enum LoanType {
 
 export enum LoanStatus {
   PENDING = "Pending",
+  UNDER_REVIEW_ADMIN = "Under Review (Admin)",
   APPROVED = "Approved",
   REJECTED = "Rejected",
   ACTIVE = "Active",
@@ -251,8 +253,10 @@ export interface AdminDashboardStats {
 }
 
 export interface AdminTransactionSummaryItem {
-  label: string;
-  value: number;
+  label?: string;
+  type?: string;
+  value?: number;
+  count?: number;
   amount?: number;
 }
 

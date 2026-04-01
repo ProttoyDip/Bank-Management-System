@@ -92,7 +92,7 @@ const formatCompactNumber = (value: number) => {
 };
 
 const getSummaryLabel = (item: AdminTransactionSummaryItem, index: number) =>
-  item.label || `Category ${index + 1}`;
+  item.label || item.type || `Category ${index + 1}`;
 
 const CHART_COLORS = [
   "#2563eb",
@@ -198,7 +198,7 @@ export default function AdminDashboard() {
       return 0;
     }
 
-    return stats.transactionSummary.reduce((total, item) => total + Number(item.value || 0), 0);
+    return stats.transactionSummary.reduce((total, item) => total + Number(item.value ?? item.count ?? 0), 0);
   }, [stats]);
 
   const transactionPieData = useMemo<ChartData[]>(() => {
@@ -208,7 +208,7 @@ export default function AdminDashboard() {
 
     return stats.transactionSummary.map((item, index) => ({
       name: getSummaryLabel(item, index),
-      value: Number(item.value || 0),
+      value: Number(item.value ?? item.count ?? 0),
       amount: Number(item.amount || 0),
       color: CHART_COLORS[index % CHART_COLORS.length],
     }));
@@ -221,7 +221,7 @@ export default function AdminDashboard() {
 
     return stats.transactionSummary.map((item, index) => ({
       name: getSummaryLabel(item, index),
-      count: Number(item.value || 0),
+      count: Number(item.value ?? item.count ?? 0),
       amount: Number(item.amount || 0),
       fill: CHART_COLORS[index % CHART_COLORS.length],
     }));
@@ -311,8 +311,12 @@ export default function AdminDashboard() {
     return null;
   };
 
+  if (!stats && !loading && !error) {
+    return <Typography>Loading...</Typography>;
+  }
+
   return (
-    <Box sx={{ maxWidth: 1600, mx: "auto" }}>
+    <Box sx={{ width: "100%", maxWidth: "100%", overflowX: "hidden", mx: "auto" }}>
       <Box sx={{ mb: 3 }}>
         <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
           Admin Dashboard
@@ -699,7 +703,8 @@ export default function AdminDashboard() {
                   {transactionSummary.length > 0 ? (
                     <Stack spacing={2.25}>
                       {transactionSummary.map((item, index) => {
-                        const percent = summaryTotal > 0 ? (Number(item.value || 0) / summaryTotal) * 100 : 0;
+                        const itemValue = Number(item.value ?? item.count ?? 0);
+                        const percent = summaryTotal > 0 ? (itemValue / summaryTotal) * 100 : 0;
 
                         return (
                           <Box key={`${getSummaryLabel(item, index)}-${index}`}>
@@ -713,7 +718,7 @@ export default function AdminDashboard() {
                                     {formatCurrency(item.amount)}
                                   </Typography>
                                 )}
-                                <Chip label={item.value} size="small" />
+                                <Chip label={item.value ?? item.count ?? 0} size="small" />
                               </Stack>
                             </Stack>
                             <LinearProgress

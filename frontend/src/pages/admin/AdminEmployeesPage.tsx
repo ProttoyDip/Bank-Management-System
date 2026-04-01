@@ -28,6 +28,8 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SendIcon from '@mui/icons-material/Send';
 import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { canInviteEmployees, canUpdateEmployeeStatus, canDeleteEmployeeInvites } from '../../utils/permissions';
 
 interface EmployeeInvite {
   id: string | number;
@@ -66,6 +68,7 @@ const getDisplayName = (employee: AdminEmployee) => {
 };
 
 const AdminEmployeesPage: React.FC = () => {
+  const { user } = useAuth();
   const [employees, setEmployees] = useState<AdminEmployee[]>([]);
   const [invites, setInvites] = useState<EmployeeInvite[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,6 +82,9 @@ const AdminEmployeesPage: React.FC = () => {
     email: '',
 
   });
+
+  // Permission checks
+  const isSuperAdmin = canInviteEmployees(user?.accessLevel);
 
   const loadData = async () => {
     try {
@@ -129,17 +135,38 @@ const AdminEmployeesPage: React.FC = () => {
       setInviteSubmitting(true);
       setError('');
       setActionMessage('');
-      await api.post('/admin/invite-employee', { email: form.email });
+      const response = await api.post('/admin/invite-employee', { email: form.email });
       setInviteOpen(false);
       setForm({
         email: '',
       });
-      setActionMessage('Employee invitation sent successfully.');
+      const emailSent = Boolean(response?.data?.emailSent);
+      setActionMessage(
+        emailSent
+          ? 'Employee invitation sent successfully.'
+          : 'Invite created, but email could not be delivered. Check SMTP diagnostics.'
+      );
       await loadData();
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Failed to send employee invite.');
     } finally {
       setInviteSubmitting(false);
+    }
+  };
+
+  const handleResendInvite = async (inviteId: string | number) => {
+    try {
+      setError('');
+      setActionMessage('');
+      const response = await api.post(`/admin/invites/${inviteId}/resend`);
+      const emailSent = Boolean(response?.data?.emailSent);
+      setActionMessage(
+        emailSent
+          ? 'Invite email resent successfully.'
+          : 'Invite exists, but email could not be sent. Check SMTP diagnostics.'
+      );
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Failed to resend invite email.');
     }
   };
 
@@ -170,9 +197,11 @@ const AdminEmployeesPage: React.FC = () => {
           <Button startIcon={<RefreshIcon />} variant="outlined" onClick={loadData}>
             Refresh
           </Button>
-          <Button startIcon={<SendIcon />} variant="contained" onClick={() => setInviteOpen(true)}>
-            Invite Employee
-          </Button>
+          {isSuperAdmin && (
+            <Button startIcon={<SendIcon />} variant="contained" onClick={() => setInviteOpen(true)}>
+              Invite Employee
+            </Button>
+          )}
         </Stack>
       </Stack>
 
@@ -247,15 +276,17 @@ const AdminEmployeesPage: React.FC = () => {
                               />
                             </TableCell>
                             <TableCell align="right">
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                onClick={() =>
-                                  handleStatusChange(employee.id, normalizedStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE')
-                                }
-                              >
-                                {normalizedStatus === 'ACTIVE' ? 'Deactivate' : 'Activate'}
-                              </Button>
+                              {isSuperAdmin && (
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  onClick={() =>
+                                    handleStatusChange(employee.id, normalizedStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE')
+                                  }
+                                >
+                                  {normalizedStatus === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                                </Button>
+                              )}
                             </TableCell>
                           </TableRow>
                         );
@@ -294,9 +325,16 @@ const AdminEmployeesPage: React.FC = () => {
                             Invited as Employee
                           </Typography>
                         </Box>
-                        <IconButton color="error" onClick={() => handleDeleteInvite(invite.id)}>
-                          <DeleteOutlineIcon />
-                        </IconButton>
+                        {isSuperAdmin && (
+                          <Stack direction="row" spacing={1}>
+                            <IconButton color="primary" onClick={() => handleResendInvite(invite.id)}>
+                              <SendIcon />
+                            </IconButton>
+                            <IconButton color="error" onClick={() => handleDeleteInvite(invite.id)}>
+                              <DeleteOutlineIcon />
+                            </IconButton>
+                          </Stack>
+                        )}
                       </Stack>
                     </CardContent>
                   </Card>
@@ -308,7 +346,7 @@ const AdminEmployeesPage: React.FC = () => {
         </Grid>
       </Grid>
 
-      <Dialog open={inviteOpen} onClose={() => setInviteOpen(false)} fullWidth maxWidth="sm">
+      <Dialog open={inviteOpen && isSuperAdmin} onClose={() => setInviteOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>Invite Employee</DialogTitle>
         <DialogContent>
           <Stack spacing={2} mt={1}>

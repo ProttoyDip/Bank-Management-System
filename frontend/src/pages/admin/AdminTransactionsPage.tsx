@@ -95,19 +95,25 @@ const AdminTransactionsPage: React.FC = () => {
   };
 
   const handleReverse = async (transactionId: string | number) => {
+    const reason = window.prompt('Enter reversal reason', 'Reversed by admin review')?.trim();
+    if (!reason) {
+      setError('Reason is required to reverse a transaction.');
+      return;
+    }
+
     try {
       setError('');
       setMessage('');
-      await api.post(`/admin/transactions/${transactionId}/reverse`);
+      await api.post(`/admin/transactions/${transactionId}/reverse`, { reason });
       setMessage('Transaction reversed successfully.');
       await loadData();
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to reverse transaction.');
+      setError(err?.response?.data?.message || err?.response?.data?.error || 'Failed to reverse transaction.');
     }
   };
 
   return (
-    <Box>
+    <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', position: 'relative', zIndex: 1 }}>
       <Stack spacing={1} mb={3}>
         <Typography variant="h4" fontWeight={700}>
           Transaction Monitoring
@@ -165,8 +171,8 @@ const AdminTransactionsPage: React.FC = () => {
                   <CircularProgress />
                 </Box>
               ) : (
-                <Box sx={{ overflowX: 'auto' }}>
-                  <Table>
+                <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'auto' }}>
+                  <Table sx={{ width: '100%' }}>
                     <TableHead>
                       <TableRow>
                         <TableCell>Reference</TableCell>

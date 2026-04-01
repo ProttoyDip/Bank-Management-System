@@ -42,8 +42,12 @@ export default function EmployeeLoans() {
       <Card sx={{ border: "1px solid", borderColor: "divider", mb: 2 }}>
         <CardContent>
           <Typography variant="h6" mb={2}>Loan Management</Typography>
+          <Typography variant="body2" color="text.secondary" mb={2}>
+            Employee approval forwards the loan to admin for final approval.
+          </Typography>
           <TextField select label="Filter Status" value={status} onChange={(e) => setStatus(e.target.value)} sx={{ minWidth: 240 }}>
             <MenuItem value="Pending">Pending</MenuItem>
+            <MenuItem value="Under Review (Admin)">Under Review (Admin)</MenuItem>
             <MenuItem value="Approved">Approved</MenuItem>
             <MenuItem value="Rejected">Rejected</MenuItem>
           </TextField>
@@ -80,8 +84,21 @@ export default function EmployeeLoans() {
                     />
                   </TableCell>
                   <TableCell align="right">
-                    <Button size="small" onClick={() => review(loan.id, "approve")}>Approve</Button>
-                    <Button size="small" color="error" onClick={() => review(loan.id, "reject")}>Reject</Button>
+                    <Button
+                      size="small"
+                      onClick={() => review(loan.id, "approve")}
+                      disabled={String(loan.status).toLowerCase() !== "pending"}
+                    >
+                      Send To Admin
+                    </Button>
+                    <Button
+                      size="small"
+                      color="error"
+                      onClick={() => review(loan.id, "reject")}
+                      disabled={String(loan.status).toLowerCase() !== "pending"}
+                    >
+                      Reject
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}

@@ -44,6 +44,8 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 
 interface ChartEntry {
   month: string;
+  pending: number;
+  underReview: number;
   approved: number;
   rejected: number;
 }
@@ -83,12 +85,16 @@ export default function LoanList() {
 
       // Aggregate by month for chart
       const agg: Record<string, ChartEntry> = {};
-      MONTHS.forEach((m) => { agg[m] = { month: m, approved: 0, rejected: 0 }; });
+      MONTHS.forEach((m) => { agg[m] = { month: m, pending: 0, underReview: 0, approved: 0, rejected: 0 }; });
       data.forEach((loan) => {
         const month = MONTHS[new Date(loan.createdAt).getMonth()];
-        if (loan.status === LoanStatus.REJECTED) {
+        if (loan.status === LoanStatus.PENDING) {
+          agg[month].pending += 1;
+        } else if (loan.status === LoanStatus.UNDER_REVIEW_ADMIN) {
+          agg[month].underReview += 1;
+        } else if (loan.status === LoanStatus.REJECTED) {
           agg[month].rejected += 1;
-        } else {
+        } else if (loan.status === LoanStatus.APPROVED || loan.status === LoanStatus.ACTIVE || loan.status === LoanStatus.COMPLETED) {
           agg[month].approved += 1;
         }
       });
@@ -142,6 +148,9 @@ export default function LoanList() {
       case LoanStatus.PENDING:
       case "Pending":
         return "warning";
+      case LoanStatus.UNDER_REVIEW_ADMIN:
+      case "Under Review (Admin)":
+        return "info";
       case LoanStatus.COMPLETED:
       case "Completed":
         return "info";
@@ -289,6 +298,8 @@ export default function LoanList() {
                     <XAxis dataKey="month" />
                     <YAxis />
                     <Tooltip />
+                    <Bar dataKey="pending" fill="#f59e0b" name="Pending" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="underReview" fill="#0ea5e9" name="Under Review (Admin)" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="approved" fill="#22c55e" name="Approved" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="rejected" fill="#ef4444" name="Rejected" radius={[4, 4, 0, 0]} />
                   </BarChart>

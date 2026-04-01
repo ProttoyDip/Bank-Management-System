@@ -135,6 +135,8 @@ export default function Login() {
         name: response.user.name,
         email: response.user.email,
         role: userRole,
+        accessLevel: response.user.accessLevel || undefined,
+        permissions: response.user.permissions || undefined,
       };
       
       login(userData, response.token);

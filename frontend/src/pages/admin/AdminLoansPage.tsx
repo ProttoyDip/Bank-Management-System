@@ -66,37 +66,49 @@ const AdminLoansPage: React.FC = () => {
   }, [loans, statusFilter]);
 
   const handleApprove = async (loanId: string | number) => {
+    const remarks = window.prompt('Enter approval remarks', 'Approved by admin')?.trim();
+    if (!remarks) {
+      setError('Remarks is required to approve a loan.');
+      return;
+    }
+
     try {
       setError('');
       setMessage('');
-      await api.put(`/admin/loans/${loanId}/approve`);
+      await api.put(`/admin/loans/${loanId}/approve`, { remarks });
       setMessage('Loan approved successfully.');
       await loadLoans();
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to approve loan.');
+      setError(err?.response?.data?.message || err?.response?.data?.error || 'Failed to approve loan.');
     }
   };
 
   const handleReject = async (loanId: string | number) => {
+    const remarks = window.prompt('Enter rejection remarks', 'Rejected by admin')?.trim();
+    if (!remarks) {
+      setError('Remarks is required to reject a loan.');
+      return;
+    }
+
     try {
       setError('');
       setMessage('');
-      await api.put(`/admin/loans/${loanId}/reject`);
+      await api.put(`/admin/loans/${loanId}/reject`, { remarks });
       setMessage('Loan rejected successfully.');
       await loadLoans();
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to reject loan.');
+      setError(err?.response?.data?.message || err?.response?.data?.error || 'Failed to reject loan.');
     }
   };
 
   return (
-    <Box>
+    <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', position: 'relative', zIndex: 1 }}>
       <Stack spacing={1} mb={3}>
         <Typography variant="h4" fontWeight={700}>
           Loan Administration
         </Typography>
         <Typography color="text.secondary">
-          Review pending loans and take approval or rejection actions.
+          Finalize loans after employee review.
         </Typography>
       </Stack>
 
@@ -125,6 +137,7 @@ const AdminLoansPage: React.FC = () => {
               >
                 <MenuItem value="ALL">All</MenuItem>
                 <MenuItem value="PENDING">Pending</MenuItem>
+                <MenuItem value="UNDER REVIEW (ADMIN)">Under Review (Admin)</MenuItem>
                 <MenuItem value="APPROVED">Approved</MenuItem>
                 <MenuItem value="REJECTED">Rejected</MenuItem>
               </TextField>
@@ -136,8 +149,8 @@ const AdminLoansPage: React.FC = () => {
               <CircularProgress />
             </Box>
           ) : (
-            <Box sx={{ overflowX: 'auto' }}>
-              <Table>
+            <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'auto' }}>
+              <Table sx={{ width: '100%' }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Customer</TableCell>
@@ -162,7 +175,7 @@ const AdminLoansPage: React.FC = () => {
                           <Chip
                             size="small"
                             label={normalizedStatus}
-                            color={normalizedStatus === 'APPROVED' ? 'success' : normalizedStatus === 'REJECTED' ? 'error' : 'warning'}
+                            color={normalizedStatus === 'APPROVED' ? 'success' : normalizedStatus === 'REJECTED' ? 'error' : normalizedStatus === 'UNDER REVIEW (ADMIN)' ? 'info' : 'warning'}
                           />
                         </TableCell>
                         <TableCell>{loan.createdAt ? new Date(loan.createdAt).toLocaleString() : '—'}</TableCell>
@@ -173,7 +186,7 @@ const AdminLoansPage: React.FC = () => {
                               variant="contained"
                               color="success"
                               onClick={() => handleApprove(loan.id)}
-                              disabled={normalizedStatus !== 'PENDING'}
+                              disabled={normalizedStatus !== 'UNDER REVIEW (ADMIN)'}
                             >
                               Approve
                             </Button>
@@ -182,7 +195,7 @@ const AdminLoansPage: React.FC = () => {
                               variant="outlined"
                               color="error"
                               onClick={() => handleReject(loan.id)}
-                              disabled={normalizedStatus !== 'PENDING'}
+                              disabled={normalizedStatus !== 'UNDER REVIEW (ADMIN)'}
                             >
                               Reject
                             </Button>
