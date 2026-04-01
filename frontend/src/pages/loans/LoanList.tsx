@@ -134,15 +134,19 @@ export default function LoanList() {
 
   const filteredAccounts = accounts.filter((a) => a.userId === form.userId);
 
-  const statusColor = (status: LoanStatus) => {
+  const statusColor = (status: LoanStatus | string) => {
     switch (status) {
       case LoanStatus.ACTIVE:
+      case "Active":
         return "success";
       case LoanStatus.PENDING:
+      case "Pending":
         return "warning";
       case LoanStatus.COMPLETED:
+      case "Completed":
         return "info";
       case LoanStatus.DEFAULTED:
+      case "Defaulted":
         return "error";
       default:
         return "default";

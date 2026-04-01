@@ -101,3 +101,36 @@ BEGIN
     );
 END
 GO
+
+IF OBJECT_ID('admin_settings', 'U') IS NULL
+BEGIN
+    CREATE TABLE admin_settings (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        settingKey NVARCHAR(100) NOT NULL UNIQUE,
+        settingValue NVARCHAR(2000) NULL,
+        description NVARCHAR(1000) NULL,
+        updatedByAdminId INT NULL,
+        createdAt DATETIME2 NOT NULL DEFAULT GETDATE(),
+        updatedAt DATETIME2 NOT NULL DEFAULT GETDATE()
+    );
+END
+GO
+
+IF OBJECT_ID('employee_invites', 'U') IS NULL
+BEGIN
+    CREATE TABLE employee_invites (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        email NVARCHAR(150) NOT NULL UNIQUE,
+        name NVARCHAR(100) NOT NULL,
+        department NVARCHAR(100) NOT NULL,
+        position NVARCHAR(100) NOT NULL,
+        salary DECIMAL(18,2) NOT NULL DEFAULT 0,
+        expiresAt DATETIME NULL,
+        status NVARCHAR(50) NOT NULL DEFAULT 'Pending',
+        createdByAdminId INT NULL,
+        notes NVARCHAR(255) NULL,
+        createdAt DATETIME2 NOT NULL DEFAULT GETDATE(),
+        updatedAt DATETIME2 NOT NULL DEFAULT GETDATE()
+    );
+END
+GO

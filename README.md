@@ -198,8 +198,8 @@ NODE_ENV=development
 PORT=3000
 DB_HOST=localhost
 DB_PORT=1433
-DB_USERNAME=sa
-DB_PASSWORD=YourPassword123!
+DB_USER=sa
+DB_PASS=YourPassword123!
 DB_NAME=BankManagementSystem
 ```
 

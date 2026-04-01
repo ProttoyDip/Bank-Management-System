@@ -35,8 +35,8 @@ services:
       - DB_HOST=db
       - DB_PORT=1433
       - DB_NAME=BankManagementSystem
-      - DB_USERNAME=sa
-      - DB_PASSWORD=12345678
+      - DB_USER=sa
+      - DB_PASS=12345678
     ports:
       - "3000:3000"
     depends_on:
