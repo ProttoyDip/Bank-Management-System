@@ -4,6 +4,7 @@ interface TokenPayload {
     id: number;
     email: string;
     role: string;
+    user_id?: string;
 }
 
 /**
@@ -23,6 +24,7 @@ export function generateToken(user: TokenPayload): string {
     return jwt.sign(
         {
             id: user.id,
+            user_id: user.user_id,
             email: user.email,
             role: user.role,
         },

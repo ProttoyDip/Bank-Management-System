@@ -1,21 +1,25 @@
 import { Box, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Typography } from "@mui/material";
 import { useLocation, useNavigate } from "react-router-dom";
 import DashboardIcon from "@mui/icons-material/Dashboard";
-import PeopleIcon from "@mui/icons-material/People";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import RequestQuoteIcon from "@mui/icons-material/RequestQuote";
 import SettingsIcon from "@mui/icons-material/Settings";
 import LogoutIcon from "@mui/icons-material/Logout";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
+import BadgeIcon from "@mui/icons-material/Badge";
+import SupportAgentIcon from "@mui/icons-material/SupportAgent";
+import AssessmentIcon from "@mui/icons-material/Assessment";
 import { useAuth } from "../../context/AuthContext";
 
 const employeeNavItems = [
   { label: "Dashboard", path: "/employee/dashboard", icon: <DashboardIcon /> },
-  { label: "Customers", path: "/employee/customers", icon: <PeopleIcon /> },
   { label: "Accounts", path: "/employee/accounts", icon: <AccountBalanceIcon /> },
   { label: "Transactions", path: "/employee/transactions", icon: <SwapHorizIcon /> },
   { label: "Loans", path: "/employee/loans", icon: <RequestQuoteIcon /> },
+  { label: "KYC", path: "/employee/kyc", icon: <BadgeIcon /> },
+  { label: "Reports", path: "/employee/reports", icon: <AssessmentIcon /> },
+  { label: "Support", path: "/employee/support", icon: <SupportAgentIcon /> },
   { label: "Settings", path: "/employee/settings", icon: <SettingsIcon /> },
 ];
 

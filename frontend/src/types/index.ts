@@ -10,13 +10,11 @@ export interface User {
   accounts?: Account[];
   createdAt: string;
   updatedAt: string;
-  // Admin fields
   adminId?: string;
   authCode?: string;
   accessLevel?: string;
   department?: string;
   officeLocation?: string;
-  // Shared
   nationalId?: string;
   twoFactorEnabled?: boolean;
   profilePhoto?: string;
@@ -26,13 +24,14 @@ export interface User {
 export interface Account {
   id: number;
   accountNumber: string;
-  type: AccountType;
+  type: AccountType | string;
   balance: number;
   isActive: boolean;
   userId: number;
   user?: User;
   createdAt: string;
   updatedAt: string;
+  status?: string;
 }
 
 export enum AccountType {
@@ -48,19 +47,18 @@ export enum UserRole {
   CUSTOMER = "Customer",
 }
 
-// ── Loan Types ──
 export interface Loan {
   id: number;
   loanNumber: string;
   userId: number;
   accountId: number;
-  type: LoanType;
+  type: LoanType | string;
   amount: number;
   interestRate: number;
-  duration: number; // months
+  duration: number;
   monthlyPayment: number;
   remainingBalance: number;
-  status: LoanStatus;
+  status: LoanStatus | string;
   startDate: string;
   endDate: string;
   user?: User;
@@ -86,17 +84,18 @@ export enum LoanStatus {
   DEFAULTED = "Defaulted",
 }
 
-// ── Transaction Types ──
 export interface Transaction {
   id: number;
   accountId: number;
-  type: TransactionType;
+  type: TransactionType | string;
   amount: number;
   balanceAfter: number;
   description: string;
   referenceNumber: string;
   createdAt: string;
   account?: Account;
+  status?: string;
+  flagged?: boolean;
 }
 
 export enum TransactionType {
@@ -108,7 +107,6 @@ export enum TransactionType {
   LOAN_PAYMENT = "Loan Payment",
 }
 
-// ── Employee Types ──
 export interface Employee {
   id: number;
   userId: number;
@@ -121,9 +119,9 @@ export interface Employee {
   user?: User;
   createdAt: string;
   updatedAt: string;
+  status?: string;
 }
 
-// ── Branch Types ──
 export interface Branch {
   id: number;
   name: string;
@@ -137,8 +135,6 @@ export interface Branch {
   updatedAt: string;
 }
 
-// ── API response wrappers ──
-
 export interface ApiResponse<T> {
   data: T;
   message?: string;
@@ -148,8 +144,6 @@ export interface ApiError {
   error: string;
 }
 
-// ── Form payloads ──
-
 export interface CreateUserPayload {
   name: string;
   email: string;
@@ -157,7 +151,6 @@ export interface CreateUserPayload {
   address?: string;
 }
 
-// Role-specific creation payloads matching backend schemas
 export interface AdminCreateInput {
   name: string;
   email: string;
@@ -165,9 +158,9 @@ export interface AdminCreateInput {
   password: string;
   nationalId: string;
   authCode: string;
-  department: 'IT' | 'Operations' | 'Compliance';
+  department: "IT" | "Operations" | "Compliance";
   officeLocation: string;
-  accessLevel: 'Super Admin' | 'Manager Admin';
+  accessLevel: "Super Admin" | "Manager Admin";
   permissions: string[];
   twoFactorEnabled?: boolean;
   securityQuestions?: {
@@ -176,7 +169,7 @@ export interface AdminCreateInput {
     q2: string;
     ans2: string;
   };
-  role: 'Admin';
+  role: "Admin";
 }
 
 export interface EmployeeCreateInput {
@@ -184,21 +177,21 @@ export interface EmployeeCreateInput {
   email: string;
   phone: string;
   password: string;
-  dateOfBirth: string; // YYYY-MM-DD
-  gender: 'Male' | 'Female' | 'Other';
+  dateOfBirth: string;
+  gender: "Male" | "Female" | "Other";
   nationalId: string;
   presentAddress: string;
   permanentAddress: string;
   department: string;
   position: string;
   branchId: number;
-  employmentType: 'Full-time' | 'Contract';
+  employmentType: "Full-time" | "Contract";
   dailyTransactionLimit: number;
   permissions: string[];
   twoFactorEnabled?: boolean;
   salary?: number;
-  hireDate?: string; // YYYY-MM-DD
-  role: 'Employee';
+  hireDate?: string;
+  role: "Employee";
 }
 
 export interface CreateAccountPayload {
@@ -237,7 +230,6 @@ export interface CreateBranchPayload {
   managerId: number;
 }
 
-// ── Dashboard Stats ──
 export interface DashboardStats {
   totalCustomers: number;
   totalAccounts: number;
@@ -247,7 +239,103 @@ export interface DashboardStats {
   activeAccounts: number;
 }
 
-// ── Chart Data Types ──
+export interface AdminDashboardStats {
+  totalCustomers: number;
+  totalEmployees: number;
+  totalAccounts: number;
+  totalTransactions: number;
+  pendingLoans: number;
+  totalBankBalance: number;
+  recentTransactions?: AdminTransactionListItem[];
+  transactionSummary?: AdminTransactionSummaryItem[];
+}
+
+export interface AdminTransactionSummaryItem {
+  label: string;
+  value: number;
+  amount?: number;
+}
+
+export interface EmployeeInvite {
+  id: number;
+  email: string;
+  name?: string;
+  department?: string;
+  position?: string;
+  status?: string;
+  invitedBy?: number;
+  expiresAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface AdminReportMetric {
+  label: string;
+  value: number | string;
+  change?: number;
+}
+
+export interface AdminReportResponse {
+  generatedAt?: string;
+  metrics?: AdminReportMetric[];
+  transactionVolume?: AdminTransactionSummaryItem[];
+  accountBreakdown?: Array<{ label: string; value: number }>;
+  loanBreakdown?: Array<{ label: string; value: number }>;
+  fraudAlerts?: Array<{ label: string; value: number }>;
+  [key: string]: unknown;
+}
+
+export interface AdminSetting {
+  id?: number;
+  key: string;
+  value: string;
+  description?: string | null;
+  category?: string | null;
+  updatedAt?: string;
+}
+
+export interface AdminCustomerListItem extends User {
+  status?: string;
+  totalAccounts?: number;
+  totalBalance?: number;
+}
+
+export interface AdminEmployeeListItem extends Employee {
+  user?: User;
+  fullName?: string;
+  email?: string;
+}
+
+export interface AdminAccountListItem extends Account {
+  user?: User;
+  customerName?: string;
+  customerEmail?: string;
+}
+
+export interface AdminTransactionListItem extends Transaction {
+  account?: Account;
+  user?: User;
+  accountNumber?: string;
+  customerName?: string;
+}
+
+export interface AdminLoanListItem extends Loan {
+  user?: User;
+  account?: Account;
+  customerName?: string;
+}
+
+export interface AuditLogEntry {
+  id: number;
+  action: string;
+  details?: string | null;
+  actorId?: number | null;
+  actorName?: string | null;
+  actorRole?: string | null;
+  targetId?: number | null;
+  createdAt: string;
+}
+
 export interface ChartDataPoint {
   name: string;
   value: number;
@@ -261,7 +349,6 @@ export interface MonthlyData {
   loans: number;
 }
 
-// ── Notification Types ──
 export interface Notification {
   id: number;
   title: string;
@@ -280,3 +367,70 @@ export enum NotificationType {
   WARNING = "Warning",
 }
 
+export interface EmployeeDashboardStats {
+  totalCustomers: number;
+  totalAccounts: number;
+  totalTransactionsToday: number;
+  pendingLoanApplications: number;
+  flaggedTransactions: number;
+}
+
+export interface KycRequest {
+  id: number;
+  userId: number;
+  status: string;
+  documentType?: string | null;
+  documentRef?: string | null;
+  remarks?: string | null;
+  verifiedByEmployeeId?: number | null;
+  verifiedAt?: string | null;
+  user?: User;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Ticket {
+  id: number;
+  userId: number;
+  message: string;
+  status: string;
+  response?: string | null;
+  resolvedByEmployeeId?: number | null;
+  resolvedAt?: string | null;
+  user?: User;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ActivityLog {
+  id: number;
+  employeeId: number;
+  action: string;
+  details?: string | null;
+  createdAt: string;
+}
+
+export interface EmployeeReportsResponse {
+  dailyReport: {
+    date: string;
+    totalCount: number;
+    totalAmount: number;
+    byType: { deposit: number; withdraw: number; transfer: number };
+  };
+  monthlySummary: {
+    month: string;
+    totalCount: number;
+    totalAmount: number;
+    deposits: number;
+    withdrawals: number;
+    transfers: number;
+  };
+  loanStatistics: {
+    totalApplications: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+    totalLoanAmount: number;
+  };
+  trendLast7Days: Array<{ date: string; totalCount: number; totalAmount: number }>;
+}

@@ -30,7 +30,7 @@ export const authService = {
    * Login user with email and password
    */
   async login(data: LoginRequest): Promise<LoginResponse> {
-    const response = await api.post<LoginResponse>("/users/login", data);
+    const response = await api.post<LoginResponse>("/auth/login", data);
     return response.data;
   },
 
@@ -38,7 +38,7 @@ export const authService = {
    * Register a new user
    */
   async register(data: RegisterRequest): Promise<any> {
-    const response = await api.post("/users", data);
+    const response = await api.post("/auth/register", data);
     return response.data;
   },
 

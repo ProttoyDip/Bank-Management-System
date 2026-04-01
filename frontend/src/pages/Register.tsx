@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Box, Button, Container, Typography, IconButton, Drawer, List, ListItem, ListItemButton, ListItemText, Link, TextField, useMediaQuery, useTheme, InputAdornment } from "@mui/material";
+import { Box, Button, Container, Typography, IconButton, Drawer, List, ListItem, ListItemButton, ListItemText, Link, TextField, MenuItem, useMediaQuery, useTheme, InputAdornment } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import CloseIcon from "@mui/icons-material/Close";
 import LockIcon from "@mui/icons-material/Lock";
@@ -36,8 +36,6 @@ const accountTypes = [
 
 const roles = [
   { id: "customer", label: "Customer", icon: AccountCircleIcon },
-  { id: "employee", label: "Employee", icon: AccountBalanceIcon },
-  { id: "admin", label: "Admin", icon: LockIcon },
 ];
 
 const floatingElements = [
@@ -158,7 +156,7 @@ export default function Register() {
     
     try {
       console.log("Creating user with:", { name: form.firstName + " " + form.lastName, email: form.email, phone: form.phone || undefined, address: form.address || undefined, password: form.password, role: UserRole.CUSTOMER, accountType: form.accountType, initialDeposit: Number(form.initialDeposit || "2000") });
-      await api.post("/users", {
+      await api.post("/auth/register", {
         name: form.firstName + " " + form.lastName,
         email: form.email,
         phone: form.phone || undefined,
@@ -371,7 +369,44 @@ export default function Register() {
               <Box sx={{ height: 1, background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)", mb: 3 }} />
               <Typography variant="subtitle2" sx={{ mb: 1.5, textTransform: "uppercase", letterSpacing: 1, fontSize: "0.7rem", color: "rgba(255,255,255,0.5)" }}>Account Preferences</Typography>
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2, mb: 4 }}>
-                <TextField select label="Account Type" fullWidth value={form.accountType} onChange={setField("accountType")} SelectProps={{ native: true }} sx={inputSx}>{accountTypes.map((t) => <option key={t.value} value={t.value} style={{ color: "black" }}>{t.label}</option>)}</TextField>
+                <TextField
+                  select
+                  label="Account Type"
+                  fullWidth
+                  value={form.accountType}
+                  onChange={setField("accountType")}
+                  sx={inputSx}
+                  SelectProps={{
+                    MenuProps: {
+                      PaperProps: {
+                        sx: {
+                          bgcolor: "#0f172a",
+                          color: "white",
+                          border: "1px solid rgba(255,255,255,0.16)",
+                          backdropFilter: "blur(12px)",
+                          "& .MuiMenuItem-root": {
+                            color: "white",
+                          },
+                          "& .MuiMenuItem-root:hover": {
+                            bgcolor: "rgba(6, 182, 212, 0.12)",
+                          },
+                          "& .MuiMenuItem-root.Mui-selected": {
+                            bgcolor: "rgba(6, 182, 212, 0.2)",
+                          },
+                          "& .MuiMenuItem-root.Mui-selected:hover": {
+                            bgcolor: "rgba(6, 182, 212, 0.28)",
+                          },
+                        },
+                      },
+                    },
+                  }}
+                >
+                  {accountTypes.map((t) => (
+                    <MenuItem key={t.value} value={t.value}>
+                      {t.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
                 <TextField label="Initial Deposit (৳)" type="number" fullWidth value={form.initialDeposit} onChange={setField("initialDeposit")} sx={inputSx} />
               </Box>
               <motion.button type="submit" disabled={loading} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} style={{ width: "100%", padding: 14, background: "linear-gradient(135deg, #06b6d4 0%, #1976d2 100%)", color: "white", fontWeight: 600, fontSize: "1rem", borderRadius: 12, border: "none", cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: "0 4px 14px rgba(25, 118, 210, 0.4)", marginBottom: 16 }}>

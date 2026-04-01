@@ -62,6 +62,15 @@ export class Loan {
     @Column({ type: "nvarchar", length: 50, default: LoanStatus.PENDING })
     status!: string;
 
+    @Column({ type: "nvarchar", length: 500, nullable: true })
+    remarks!: string | null;
+
+    @Column({ type: "int", nullable: true })
+    reviewedByEmployeeId!: number | null;
+
+    @Column({ type: "datetime", nullable: true })
+    reviewedAt!: Date | null;
+
     @Column({ type: "datetime", nullable: true })
     startDate!: Date | null;
 

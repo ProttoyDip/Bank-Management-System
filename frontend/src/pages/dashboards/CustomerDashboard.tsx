@@ -68,9 +68,11 @@ import {
 
 import { useSearch } from "../../context/SearchContext";
 
-function getTxKind(type: TransactionType): "deposit" | "withdraw" | "transfer" | "loan" {
-  if (type === TransactionType.DEPOSIT || type === TransactionType.TRANSFER_IN || type === TransactionType.LOAN_DISBURSEMENT) return "deposit";
-  if (type === TransactionType.WITHDRAW || type === TransactionType.TRANSFER_OUT || type === TransactionType.LOAN_PAYMENT) return "withdraw";
+function getTxKind(type: TransactionType | string): "deposit" | "withdraw" | "transfer" | "loan" {
+  if (type === TransactionType.DEPOSIT || type === TransactionType.TRANSFER_IN || type === TransactionType.LOAN_DISBURSEMENT || 
+      type === "Deposit" || type === "Transfer In" || type === "Loan Disbursement") return "deposit";
+  if (type === TransactionType.WITHDRAW || type === TransactionType.TRANSFER_OUT || type === TransactionType.LOAN_PAYMENT ||
+      type === "Withdraw" || type === "Transfer Out" || type === "Loan Payment") return "withdraw";
   return "transfer";
 }
 

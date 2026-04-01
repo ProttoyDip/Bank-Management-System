@@ -5,6 +5,9 @@ import loanRoutes from "./loanRoutes";
 import transactionRoutes from "./transactionRoutes";
 import testEmailRoute from "./testEmailRoute";
 import seedRoutes from "./seedRoutes";
+import employeeRoutes from "./employeeRoutes";
+import authRoutes from "./authRoutes";
+import adminRoutes from "./adminRoutes";
 
 const router = Router();
 
@@ -86,5 +89,8 @@ router.use("/loans", loanRoutes);
 router.use("/transactions", transactionRoutes);
 router.use(testEmailRoute);
 router.use("/seed", seedRoutes);
+router.use("/employee", employeeRoutes);
+router.use("/auth", authRoutes);
+router.use("/admin", adminRoutes);
 
 export default router;

@@ -18,6 +18,12 @@ export enum TransactionType {
     LOAN_PAYMENT = "Loan Payment",
 }
 
+export enum TransactionStatus {
+    PENDING = "Pending",
+    APPROVED = "Approved",
+    SUSPICIOUS = "Suspicious",
+}
+
 @Entity("transactions")
 export class Transaction {
     @PrimaryGeneratedColumn()
@@ -41,6 +47,24 @@ export class Transaction {
 
     @Column({ type: "nvarchar", length: 50, unique: true })
     referenceNumber!: string;
+
+    @Column({ type: "nvarchar", length: 30, default: TransactionStatus.PENDING })
+    status!: string;
+
+    @Column({ type: "bit", default: false })
+    isFlagged!: boolean;
+
+    @Column({ type: "nvarchar", length: 255, nullable: true })
+    flagReason!: string | null;
+
+    @Column({ type: "int", nullable: true })
+    reviewedByEmployeeId!: number | null;
+
+    @Column({ type: "datetime", nullable: true })
+    reviewedAt!: Date | null;
+
+    @Column({ type: "int", nullable: true })
+    createdByEmployeeId!: number | null;
 
     @ManyToOne(() => Account, { onDelete: "CASCADE" })
     @JoinColumn({ name: "accountId" })
