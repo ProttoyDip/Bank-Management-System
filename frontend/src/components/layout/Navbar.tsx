@@ -24,7 +24,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { useNotification } from "../../context/NotificationContext";
+import { useNotification } from "../../context/useNotification";
 import { Notification } from "../../types";
 
 interface NavbarProps {
@@ -317,4 +317,3 @@ export default function Navbar({ onMenuClick, sidebarWidth }: NavbarProps) {
     </AppBar>
   );
 }
-

@@ -5,11 +5,22 @@ import { Request, Response, NextFunction } from "express";
  * Catches unhandled errors and returns a consistent JSON response.
  */
 export function errorHandler(
-    err: Error,
+    err: any,
     req: Request,
     res: Response,
     _next: NextFunction
 ): void {
+    // Handle express-rate-limit errors specifically (status 429)
+    if (err.status === 429 || res.statusCode === 429) {
+        res.set('Retry-After', '900');
+        res.status(429).json({
+            success: false,
+            message: "Rate limit exceeded. Please try again later.",
+            retryAfter: 900
+        });
+        return;
+    }
+
     console.error("Unhandled Error:", err.message);
     console.error(err.stack);
 
@@ -25,6 +36,7 @@ export function errorHandler(
     }
 
     res.status(500).json({
+        success: false,
         message: err.message || "Internal Server Error",
     });
 }

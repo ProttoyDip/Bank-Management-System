@@ -21,6 +21,7 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import { motion } from 'framer-motion';
@@ -29,7 +30,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import SendIcon from '@mui/icons-material/Send';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import { canInviteEmployees, canUpdateEmployeeStatus, canDeleteEmployeeInvites } from '../../utils/permissions';
+import { canManageEmployeeInvites, canUpdateEmployeeStatus } from '../../utils/permissions';
 
 interface EmployeeInvite {
   id: string | number;
@@ -60,7 +61,7 @@ interface InviteFormState {
   email: string;
 }
 
-const MotionCard = motion(Card);
+const MotionCard = motion.create(Card);
 
 const getDisplayName = (employee: AdminEmployee) => {
   if (employee.name) return employee.name;
@@ -73,6 +74,7 @@ const AdminEmployeesPage: React.FC = () => {
   const [invites, setInvites] = useState<EmployeeInvite[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
+  const [inviteActionState, setInviteActionState] = useState<Record<string, 'resend' | 'delete'>>({});
   const [error, setError] = useState('');
   const [actionMessage, setActionMessage] = useState('');
   const [search, setSearch] = useState('');
@@ -84,7 +86,8 @@ const AdminEmployeesPage: React.FC = () => {
   });
 
   // Permission checks
-  const isSuperAdmin = canInviteEmployees(user?.accessLevel);
+  const canManageInvites = canManageEmployeeInvites(user?.accessLevel, user?.permissions);
+  const canManageEmployeeStatus = canUpdateEmployeeStatus(user?.accessLevel);
 
   const loadData = async () => {
     try {
@@ -155,7 +158,11 @@ const AdminEmployeesPage: React.FC = () => {
   };
 
   const handleResendInvite = async (inviteId: string | number) => {
+    const inviteKey = String(inviteId);
+    if (inviteActionState[inviteKey]) return;
+
     try {
+      setInviteActionState((prev) => ({ ...prev, [inviteKey]: 'resend' }));
       setError('');
       setActionMessage('');
       const response = await api.post(`/admin/invites/${inviteId}/resend`);
@@ -165,13 +172,24 @@ const AdminEmployeesPage: React.FC = () => {
           ? 'Invite email resent successfully.'
           : 'Invite exists, but email could not be sent. Check SMTP diagnostics.'
       );
+      await loadData();
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Failed to resend invite email.');
+    } finally {
+      setInviteActionState((prev) => {
+        const next = { ...prev };
+        delete next[inviteKey];
+        return next;
+      });
     }
   };
 
   const handleDeleteInvite = async (inviteId: string | number) => {
+    const inviteKey = String(inviteId);
+    if (inviteActionState[inviteKey]) return;
+
     try {
+      setInviteActionState((prev) => ({ ...prev, [inviteKey]: 'delete' }));
       setError('');
       setActionMessage('');
       await api.delete(`/admin/invites/${inviteId}`);
@@ -179,7 +197,19 @@ const AdminEmployeesPage: React.FC = () => {
       await loadData();
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Failed to delete invite.');
+    } finally {
+      setInviteActionState((prev) => {
+        const next = { ...prev };
+        delete next[inviteKey];
+        return next;
+      });
     }
+  };
+
+  const handleOpenInviteDialog = (event: React.MouseEvent<HTMLButtonElement>) => {
+    // Prevent focused background element from staying focused while dialog hides the app root.
+    event.currentTarget.blur();
+    setInviteOpen(true);
   };
 
   return (
@@ -197,8 +227,8 @@ const AdminEmployeesPage: React.FC = () => {
           <Button startIcon={<RefreshIcon />} variant="outlined" onClick={loadData}>
             Refresh
           </Button>
-          {isSuperAdmin && (
-            <Button startIcon={<SendIcon />} variant="contained" onClick={() => setInviteOpen(true)}>
+          {canManageInvites && (
+            <Button startIcon={<SendIcon />} variant="contained" onClick={handleOpenInviteDialog}>
               Invite Employee
             </Button>
           )}
@@ -276,7 +306,7 @@ const AdminEmployeesPage: React.FC = () => {
                               />
                             </TableCell>
                             <TableCell align="right">
-                              {isSuperAdmin && (
+                              {canManageEmployeeStatus && (
                                 <Button
                                   size="small"
                                   variant="outlined"
@@ -312,41 +342,81 @@ const AdminEmployeesPage: React.FC = () => {
               <Typography variant="h6" fontWeight={700} mb={2}>
                 Pending Invites
               </Typography>
-              <Stack spacing={2}>
-                {invites.map((invite) => (
-                  <Card key={invite.id} variant="outlined">
-                    <CardContent sx={{ '&:last-child': { pb: 2 } }}>
-                      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
-                        <Box>
-                          <Typography fontWeight={600}>
-                            {invite.email}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            Invited as Employee
-                          </Typography>
-                        </Box>
-                        {isSuperAdmin && (
-                          <Stack direction="row" spacing={1}>
-                            <IconButton color="primary" onClick={() => handleResendInvite(invite.id)}>
-                              <SendIcon />
-                            </IconButton>
-                            <IconButton color="error" onClick={() => handleDeleteInvite(invite.id)}>
-                              <DeleteOutlineIcon />
-                            </IconButton>
+              {loading ? (
+                <Box display="flex" justifyContent="center" py={4}>
+                  <CircularProgress size={24} />
+                </Box>
+              ) : (
+                <Stack spacing={2}>
+                  {invites.map((invite) => {
+                    const inviteKey = String(invite.id);
+                    const inviteAction = inviteActionState[inviteKey];
+                    const inviteBusy = Boolean(inviteAction);
+
+                    return (
+                      <Card key={invite.id} variant="outlined">
+                        <CardContent sx={{ '&:last-child': { pb: 2 } }}>
+                          <Stack
+                            direction="row"
+                            justifyContent="space-between"
+                            alignItems="flex-start"
+                            spacing={1}
+                            sx={{ minWidth: 0 }}
+                          >
+                            <Box sx={{ minWidth: 0, flex: 1 }}>
+                              <Typography fontWeight={600} sx={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+                                {invite.email}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                Invited as Employee
+                              </Typography>
+                            </Box>
+                            {canManageInvites && (
+                              <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
+                                <Tooltip title={inviteAction === 'resend' ? 'Resending...' : 'Resend invite'}>
+                                  <span>
+                                    <IconButton
+                                      color="primary"
+                                      size="small"
+                                      disabled={inviteBusy}
+                                      onClick={() => handleResendInvite(invite.id)}
+                                    >
+                                      {inviteAction === 'resend' ? <CircularProgress size={16} /> : <SendIcon fontSize="small" />}
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                                <Tooltip title={inviteAction === 'delete' ? 'Deleting...' : 'Delete invite'}>
+                                  <span>
+                                    <IconButton
+                                      color="error"
+                                      size="small"
+                                      disabled={inviteBusy}
+                                      onClick={() => handleDeleteInvite(invite.id)}
+                                    >
+                                      {inviteAction === 'delete' ? (
+                                        <CircularProgress size={16} color="inherit" />
+                                      ) : (
+                                        <DeleteOutlineIcon fontSize="small" />
+                                      )}
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                              </Stack>
+                            )}
                           </Stack>
-                        )}
-                      </Stack>
-                    </CardContent>
-                  </Card>
-                ))}
-                {!invites.length && <Typography color="text.secondary">No pending invites.</Typography>}
-              </Stack>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                  {!invites.length && <Typography color="text.secondary">No pending invites.</Typography>}
+                </Stack>
+              )}
             </CardContent>
           </MotionCard>
         </Grid>
       </Grid>
 
-      <Dialog open={inviteOpen && isSuperAdmin} onClose={() => setInviteOpen(false)} fullWidth maxWidth="sm">
+      <Dialog open={inviteOpen && canManageInvites} onClose={() => setInviteOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>Invite Employee</DialogTitle>
         <DialogContent>
           <Stack spacing={2} mt={1}>

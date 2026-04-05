@@ -17,17 +17,31 @@ export async function login(email: string, password: string): Promise<LoginResul
     const normalizedEmail = email.trim().toLowerCase();
     const adminEmail = String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
     const adminPasswordHash = String(process.env.ADMIN_PASSWORD_HASH || "").trim();
+    const userRepository = getDataSource().getRepository(User);
 
     if (adminEmail && normalizedEmail === adminEmail) {
-        if (!adminPasswordHash) {
-            return {
-                success: false,
-                error: "Admin authentication is not configured"
-            };
-        }
+        const dbUser = await userRepository.findOne({
+            where: { email: normalizedEmail },
+            select: {
+                id: true,
+                email: true,
+                password: true,
+                role: true,
+                name: true,
+                status: true,
+                accessLevel: true,
+                permissions: true
+            }
+        });
 
-        const isAdminPasswordValid = await comparePassword(password, adminPasswordHash);
-        if (!isAdminPasswordValid) {
+        const isEnvAdminPasswordValid = adminPasswordHash
+            ? await comparePassword(password, adminPasswordHash)
+            : false;
+        const isDbPasswordValid = dbUser?.password
+            ? await comparePassword(password, dbUser.password)
+            : false;
+
+        if (!isEnvAdminPasswordValid && !isDbPasswordValid) {
             return {
                 success: false,
                 error: "Invalid credentials"
@@ -35,8 +49,8 @@ export async function login(email: string, password: string): Promise<LoginResul
         }
 
         const token = generateToken({
-            id: -1,
-            user_id: "ADMIN_STATIC_ID",
+            id: dbUser?.id ?? -1,
+            user_id: dbUser?.id ? `ADMIN_${dbUser.id}` : "ADMIN_STATIC_ID",
             email: adminEmail,
             role: "ADMIN",
             accessLevel: "Super Admin",  // Static admin is always Super Admin
@@ -44,8 +58,8 @@ export async function login(email: string, password: string): Promise<LoginResul
         });
 
         const adminUser = {
-            id: -1,
-            name: "System Administrator",
+            id: dbUser?.id ?? -1,
+            name: dbUser?.name || "System Administrator",
             email: adminEmail,
             role: "ADMIN",
             accessLevel: "Super Admin",
@@ -58,8 +72,6 @@ export async function login(email: string, password: string): Promise<LoginResul
             user: adminUser
         };
     }
-
-    const userRepository = getDataSource().getRepository(User);
 
     // Find user by email (select admin tier columns)
     const user = await userRepository.findOne({ 
@@ -204,4 +216,3 @@ export async function changePassword(
         success: true
     };
 }
-

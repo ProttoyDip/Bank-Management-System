@@ -194,6 +194,62 @@ export const sendEmployeeInviteEmail = async (
   }
 };
 
+export const sendKycDecisionEmail = async (
+  email: string,
+  payload: {
+    userName: string;
+    status: "Approved" | "Rejected";
+    remarks?: string | null;
+    riskLevel?: string;
+  }
+): Promise<boolean> => {
+  if (!isEmailConfigured) {
+    console.warn(`⚠️ KYC decision email skipped (SMTP not configured): ${email}`);
+    return false;
+  }
+
+  const approved = payload.status === "Approved";
+  const accent = approved ? "#16a34a" : "#dc2626";
+  const title = approved ? "KYC Approved" : "KYC Rejected";
+
+  try {
+    await transporter.sendMail({
+      from: `"BankPro" <${process.env.SMTP_EMAIL}>`,
+      to: email,
+      subject: `${title} - BankPro`,
+      html: `
+      ${BOX_LAYOUT_START}
+        <h2 style="color:${accent}; margin-top:0;">${title}</h2>
+        <p>Hello <strong>${payload.userName}</strong>,</p>
+        <p>Your KYC submission has been <strong>${approved ? "approved" : "rejected"}</strong>.</p>
+
+        <div style="background:${approved ? "#dcfce7" : "#fee2e2"}; color:${accent}; padding:18px; border-radius:10px; margin:20px 0; border:1px solid ${approved ? "#bbf7d0" : "#fecaca"};">
+          <p style="margin:0 0 6px 0;"><strong>Status:</strong> ${payload.status}</p>
+          ${payload.riskLevel ? `<p style="margin:0 0 6px 0;"><strong>Risk Level:</strong> ${payload.riskLevel}</p>` : ""}
+          ${payload.remarks ? `<p style="margin:0;"><strong>Remarks:</strong> ${payload.remarks}</p>` : ""}
+        </div>
+
+        <p style="font-size:14px; color:#6b7280;">
+          ${approved ? "You can now access the full banking experience without verification restrictions." : "Please review the remarks above, update your documents, and resubmit KYC if needed."}
+        </p>
+      ${BOX_LAYOUT_END}
+      `,
+      text: [
+        `Hello ${payload.userName},`,
+        "",
+        `Your KYC submission has been ${approved ? "approved" : "rejected"}.`,
+        payload.riskLevel ? `Risk Level: ${payload.riskLevel}` : "",
+        payload.remarks ? `Remarks: ${payload.remarks}` : "",
+      ].filter(Boolean).join("\n"),
+    });
+
+    return true;
+  } catch (error) {
+    console.error("❌ Error sending KYC decision email:", error);
+    return false;
+  }
+};
+
 export async function getEmailDiagnostics() {
   const diagnostics = {
     configured: isEmailConfigured,

@@ -35,7 +35,7 @@ interface AdminTransaction {
   description?: string;
 }
 
-const MotionCard = motion(Card);
+const MotionCard = motion.create(Card);
 
 const AdminTransactionsPage: React.FC = () => {
   const [transactions, setTransactions] = useState<AdminTransaction[]>([]);

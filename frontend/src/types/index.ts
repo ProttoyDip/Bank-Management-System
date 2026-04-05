@@ -391,6 +391,55 @@ export interface KycRequest {
   user?: User;
   createdAt: string;
   updatedAt: string;
+  fullName?: string;
+  dob?: string | null;
+  country?: string | null;
+  transactionIntent?: string | null;
+  submittedDate?: string;
+  riskLevel?: "Low" | "Medium" | "High" | string;
+  riskScore?: number;
+  riskFactors?: string[];
+  documents?: KycDocumentPreview[];
+  timeline?: KycTimelineEntry[];
+  auditTrail?: ActivityLog[];
+  profile?: {
+    fullName?: string;
+    dob?: string;
+    address?: string;
+    nationalId?: string;
+    passportNumber?: string;
+    country?: string;
+    transactionIntent?: string;
+    riskLevel?: string;
+    riskScore?: number;
+    riskFactors?: string[];
+    submittedAt?: string;
+  };
+}
+
+export interface KycDocumentPreview {
+  id: string;
+  type: string;
+  fileName: string;
+  filePath: string;
+  mimeType: string;
+  isValid: boolean | null;
+  validationRemark: string | null;
+}
+
+export interface KycTimelineEntry {
+  label: string;
+  at: string | Date;
+  status: string;
+  comment?: string | null;
+}
+
+export interface KycOverviewStats {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+  approvalRate: number;
 }
 
 export interface Ticket {

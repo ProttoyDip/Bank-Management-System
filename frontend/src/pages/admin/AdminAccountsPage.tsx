@@ -37,7 +37,7 @@ interface AdminAccount {
   };
 }
 
-const MotionCard = motion(Card);
+const MotionCard = motion.create(Card);
 
 const getOwnerName = (account: AdminAccount) => {
   if (account.customerName) return account.customerName;

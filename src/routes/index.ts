@@ -8,7 +8,8 @@ import seedRoutes from "./seedRoutes";
 import employeeRoutes from "./employeeRoutes";
 import authRoutes from "./authRoutes";
 import adminRoutes from "./adminRoutes";
-import cardRoutes from "./cardRoutes";
+import kycRoutes from "./kycRoutes";
+import notificationRoutes from "./notificationRoutes";
 
 const router = Router();
 
@@ -93,6 +94,7 @@ router.use("/seed", seedRoutes);
 router.use("/employee", employeeRoutes);
 router.use("/auth", authRoutes);
 router.use("/admin", adminRoutes);
-router.use("/card", cardRoutes);
+router.use("/kyc", kycRoutes);
+router.use("/notifications", notificationRoutes);
 
 export default router;

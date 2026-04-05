@@ -15,6 +15,7 @@ import DashboardIcon from "@mui/icons-material/Dashboard";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import RequestQuoteIcon from "@mui/icons-material/RequestQuote";
+import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
 import SettingsIcon from "@mui/icons-material/Settings";
 import LogoutIcon from "@mui/icons-material/Logout";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
@@ -28,6 +29,7 @@ const customerNavItems = [
   { label: "My Card", path: "/customer/card", icon: <CreditCardIcon /> },
   { label: "Transactions", path: "/customer/transactions", icon: <SwapHorizIcon /> },
   { label: "Loans", path: "/customer/loans", icon: <RequestQuoteIcon /> },
+  { label: "KYC", path: "/customer/kyc", icon: <VerifiedUserIcon /> },
   { label: "Settings", path: "/customer/settings", icon: <SettingsIcon /> },
 ];
 

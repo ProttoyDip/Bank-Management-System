@@ -45,7 +45,7 @@ interface AdminKycRequest {
   };
 }
 
-const MotionCard = motion(Card);
+const MotionCard = motion.create(Card);
 
 const AdminKycPage: React.FC = () => {
   const [kycRequests, setKycRequests] = useState<AdminKycRequest[]>([]);
@@ -56,7 +56,7 @@ const AdminKycPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<AdminKycRequest | null>(null);
-  const [verifyStatus, setVerifyStatus] = useState('Verified');
+  const [verifyStatus, setVerifyStatus] = useState('Admin Verified');
   const [verifyRemarks, setVerifyRemarks] = useState('');
 
   const loadKycRequests = async () => {
@@ -96,7 +96,7 @@ const AdminKycPage: React.FC = () => {
 
   const handleVerifyClick = (request: AdminKycRequest) => {
     setSelectedRequest(request);
-    setVerifyStatus('Verified');
+    setVerifyStatus('Admin Verified');
     setVerifyRemarks('');
     setVerifyDialogOpen(true);
   };
@@ -121,8 +121,10 @@ const AdminKycPage: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status?.toUpperCase()) {
-      case 'VERIFIED':
+      case 'ADMIN VERIFIED':
         return 'success';
+      case 'EMPLOYEE APPROVED':
+        return 'info';
       case 'REJECTED':
         return 'error';
       case 'PENDING':
@@ -177,7 +179,8 @@ const AdminKycPage: React.FC = () => {
               >
                 <MenuItem value="ALL">All</MenuItem>
                 <MenuItem value="PENDING">Pending</MenuItem>
-                <MenuItem value="VERIFIED">Verified</MenuItem>
+                <MenuItem value="EMPLOYEE APPROVED">Employee Approved</MenuItem>
+                <MenuItem value="ADMIN VERIFIED">Admin Verified</MenuItem>
                 <MenuItem value="REJECTED">Rejected</MenuItem>
               </TextField>
             </Grid>
@@ -221,7 +224,7 @@ const AdminKycPage: React.FC = () => {
                           {request.createdAt ? new Date(request.createdAt).toLocaleString() : '—'}
                         </TableCell>
                         <TableCell align="right">
-                          {normalizedStatus === 'PENDING' && (
+                          {normalizedStatus === 'EMPLOYEE APPROVED' && (
                             <Stack direction="row" spacing={1} justifyContent="flex-end">
                               <Button
                                 size="small"
@@ -275,7 +278,7 @@ const AdminKycPage: React.FC = () => {
 
       <Dialog open={verifyDialogOpen} onClose={() => setVerifyDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
-          {verifyStatus === 'Verified' ? 'Verify KYC Request' : 'Reject KYC Request'}
+          {verifyStatus === 'Admin Verified' ? 'Verify KYC Request' : 'Reject KYC Request'}
         </DialogTitle>
         <DialogContent>
           <Stack spacing={2} mt={1}>
@@ -296,7 +299,7 @@ const AdminKycPage: React.FC = () => {
               value={verifyStatus}
               onChange={(event) => setVerifyStatus(event.target.value)}
             >
-              <MenuItem value="Verified">Verified</MenuItem>
+              <MenuItem value="Admin Verified">Admin Verified</MenuItem>
               <MenuItem value="Rejected">Rejected</MenuItem>
             </TextField>
             <TextField
@@ -315,9 +318,9 @@ const AdminKycPage: React.FC = () => {
           <Button
             onClick={handleVerifySubmit}
             variant="contained"
-            color={verifyStatus === 'Verified' ? 'success' : 'error'}
+            color={verifyStatus === 'Admin Verified' ? 'success' : 'error'}
           >
-            {verifyStatus === 'Verified' ? 'Verify' : 'Reject'}
+            {verifyStatus === 'Admin Verified' ? 'Verify' : 'Reject'}
           </Button>
         </DialogActions>
       </Dialog>

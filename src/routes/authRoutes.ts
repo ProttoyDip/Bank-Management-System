@@ -13,7 +13,7 @@ import { verifyInviteToken } from "../utils/inviteToken";
 
 const router = Router();
 
-const acceptInviteSchema = z.object({
+const completeInviteSchema = z.object({
 	token: z.string().min(10),
 	name: z.string().trim().min(2).max(100),
 	password: z.string().min(8),
@@ -88,10 +88,10 @@ router.get("/invite/verify", async (req, res) => {
 	}
 });
 
-router.post("/invite/accept", async (req, res) => {
-	const parsed = acceptInviteSchema.safeParse(req.body || {});
+const completeInviteHandler = async (req: any, res: any) => {
+	const parsed = completeInviteSchema.safeParse(req.body || {});
 	if (!parsed.success) {
-		return res.status(400).json({ success: false, message: "Invalid invite acceptance payload" });
+		return res.status(400).json({ success: false, message: "Invalid invite completion payload" });
 	}
 
 	try {
@@ -109,7 +109,25 @@ router.post("/invite/accept", async (req, res) => {
 
 		const existingUser = await userRepository.findOne({ where: { email: validInvite.email } });
 		if (existingUser) {
-			return res.status(409).json({ success: false, message: "A user already exists for this invite email" });
+			const existingRole = String(existingUser.role || "").toLowerCase();
+			if (existingRole !== "employee") {
+				return res.status(409).json({ success: false, message: "Email already used by another account" });
+			}
+
+			validInvite.status = "Accepted";
+			validInvite.notes = (validInvite.notes || "")
+				.concat(`${validInvite.notes ? " | " : ""}Invite reused by employee ${existingUser.id} on ${new Date().toISOString()}`)
+				.slice(0, 255);
+			await inviteRepository.save(validInvite);
+			return res.status(200).json({
+				success: true,
+				message: "Employee account already exists. Please login.",
+				data: {
+					userId: existingUser.id,
+					email: existingUser.email,
+					alreadyRegistered: true,
+				},
+			});
 		}
 
 		const passwordHash = await hashPassword(parsed.data.password);
@@ -154,7 +172,7 @@ router.post("/invite/accept", async (req, res) => {
 
 		return res.status(201).json({
 			success: true,
-			message: "Invite accepted successfully. You can now login.",
+			message: "Invite completed successfully. You can now login.",
 			data: {
 				userId: result.savedUser.id,
 				employeeId: result.savedEmployee.employeeId,
@@ -166,9 +184,12 @@ router.post("/invite/accept", async (req, res) => {
 			return res.status(400).json({ success: false, message: "Invalid or expired invite token" });
 		}
 
-		console.error("Accept invite error:", error);
-		return res.status(500).json({ success: false, message: "Failed to accept invite" });
+		console.error("Complete invite error:", error);
+		return res.status(500).json({ success: false, message: "Failed to complete invite" });
 	}
-});
+};
+
+router.post("/invite/complete", completeInviteHandler);
+router.post("/invite/accept", completeInviteHandler);
 
 export default router;

@@ -26,6 +26,7 @@ router.put("/loans/:id/reject", EmployeeOpsController.rejectLoan);
 
 router.get("/kyc", EmployeeOpsController.getKyc);
 router.put("/kyc/:id/verify", EmployeeOpsController.verifyKyc);
+router.put("/kyc/:id/approve", EmployeeOpsController.verifyKyc);
 
 router.get("/tickets", EmployeeOpsController.getTickets);
 router.put("/tickets/:id/resolve", EmployeeOpsController.resolveTicket);

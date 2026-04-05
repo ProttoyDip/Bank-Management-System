@@ -17,6 +17,18 @@ const generateVerificationCode = (): string => {
 
 const getFixedAdminEmail = (): string => String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
 
+function getAuthCookieOptions() {
+    const isProduction = String(process.env.NODE_ENV || "").toLowerCase() === "production";
+
+    return {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: isProduction ? ("none" as const) : ("lax" as const),
+        path: "/",
+        maxAge: 24 * 60 * 60 * 1000,
+    };
+}
+
 export class UserController {
     // FORGOT PASSWORD - SEND VERIFICATION CODE
     static async forgotPassword(req: Request, res: Response): Promise<void> {
@@ -159,6 +171,13 @@ export class UserController {
                 return;
             }
 
+            if (!result.token) {
+                res.status(500).json({ error: "Login succeeded but no token was returned" });
+                return;
+            }
+
+            res.cookie("token", result.token, getAuthCookieOptions());
+
             res.json({
                 message: "Login successful",
                 token: result.token,
@@ -207,6 +226,7 @@ export class UserController {
                 password: hashedPassword,
                 role,
                 status: "Active",
+                twoFactorEnabled: false,
                 createdBy: Number.isInteger(Number(req.user?.id)) ? Number(req.user?.id) : null
             } as Partial<User>;
             let user = userRepo.create(createData);
@@ -295,7 +315,8 @@ export class UserController {
                 address: data.address,
                 password: hashedPassword,
                 role: "Customer",
-                status: "Active"
+                status: "Active",
+                twoFactorEnabled: false
             });
 
             const savedUser = await userRepo.save(user);
