@@ -43,8 +43,8 @@ export default function EmployeeReports() {
               <Typography variant="body2" color="text.secondary" mb={1}>
                 Date: {reports?.dailyReport.date || "-"} | Total: {reports?.dailyReport.totalCount || 0}
               </Typography>
-              <Box sx={{ width: "100%", height: 300 }}>
-                <ResponsiveContainer>
+              <Box sx={{ width: "100%", height: 300, minWidth: 0 }}>
+                <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={dailyByType}>
                     <XAxis dataKey="type" />
                     <YAxis />
@@ -60,8 +60,8 @@ export default function EmployeeReports() {
           <Card sx={{ border: "1px solid", borderColor: "divider" }}>
             <CardContent>
               <Typography variant="h6" mb={2}>Monthly Summary ({reports?.monthlySummary.month || "-"})</Typography>
-              <Box sx={{ width: "100%", height: 300 }}>
-                <ResponsiveContainer>
+              <Box sx={{ width: "100%", height: 300, minWidth: 0 }}>
+                <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={reports?.trendLast7Days || []}>
                     <XAxis dataKey="date" />
                     <YAxis />
@@ -79,8 +79,8 @@ export default function EmployeeReports() {
           <Card sx={{ border: "1px solid", borderColor: "divider" }}>
             <CardContent>
               <Typography variant="h6" mb={2}>Loan Statistics</Typography>
-              <Box sx={{ width: "100%", height: 280 }}>
-                <ResponsiveContainer>
+              <Box sx={{ width: "100%", height: 280, minWidth: 0 }}>
+                <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={loanStats}>
                     <XAxis dataKey="status" />
                     <YAxis />

@@ -263,8 +263,8 @@ export default function TransactionHistory() {
           >
             <CardContent sx={{ p: {xs: 2, sm: 3} }}>
               <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>Weekly Overview</Typography>
-              <Box sx={{ height: 280 }}>
-                <ResponsiveContainer>
+              <Box sx={{ height: 280, minWidth: 0 }}>
+                <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />

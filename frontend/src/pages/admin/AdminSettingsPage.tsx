@@ -45,7 +45,7 @@ interface CreateAdminForm {
   accessLevel: 'Super Admin' | 'Manager Admin';
 }
 
-const MotionCard = motion(Card);
+const MotionCard = motion.create(Card);
 
 const AdminSettingsPage: React.FC = () => {
   const { user } = useAuth();

@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { UserRole, Notification, NotificationType } from '../types';
+import { UserRole, Notification } from '../types';
 import notificationService, { connectNotificationStream } from '../services/notificationService';
 import { useAuth } from './AuthContext';
 
@@ -28,7 +28,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     return `notifications_${roleKey}${userId ? `_${userId}` : ''}`;
   }, [role, userId]);
 
-  const loadNotifications = useCallback(async (options: { skipKyc?: boolean } = {}) => {
+  const loadNotifications = useCallback(async () => {
     if (!user || !role) {
       setNotifications([]);
       setLoading(false);
@@ -44,14 +44,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       let fetched: Notification[];
+      const customerSkipKyc = role === 'Customer' && kycCache !== null && Date.now() - kycCache.timestamp < 300000;
+
       switch (role) {
-        case 'Customer': {
-          fetched = await notificationService.getCustomerNotifications(userId!, { skipKyc: options.skipKyc });
-          if (!options.skipKyc) {
+        case 'Customer':
+          fetched = await notificationService.getCustomerNotifications(userId!, { skipKyc: customerSkipKyc });
+          if (!customerSkipKyc) {
             setKycCache({ timestamp: Date.now() });
           }
           break;
-        }
         case 'Admin':
           fetched = await notificationService.getAdminNotifications();
           break;
@@ -120,10 +121,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (user && role) {
-      const skipKyc = role === 'Customer' && kycCache !== null && Date.now() - kycCache.timestamp < 300000;
-      // Add a small delay for admin notifications to avoid competing with dashboard loads
-      const delay = role === 'Admin' ? 1000 : 0;
-      setTimeout(() => loadNotifications({ skipKyc }), delay);
+      loadNotifications();
     } else {
       setNotifications([]);
       setLoading(false);
@@ -135,30 +133,22 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const interval = setInterval(() => {
-      const skipKyc = role === 'Customer' && kycCache !== null && Date.now() - kycCache.timestamp < 300000;
-      loadNotifications({ skipKyc });
-    }, 300000); // 5 minutes
+    const disconnect = connectNotificationStream((notification) => {
+      upsertNotification(notification);
+    });
 
-    return () => clearInterval(interval);
-  }, [loadNotifications, role, user, kycCache]);
+    return disconnect;
+  }, [role, upsertNotification, user]);
 
   useEffect(() => {
-    if (!user || !role) {
-      return;
+    if (!loading && notifications.length > 0) {
+      const interval = setInterval(() => {
+        loadNotifications();
+      }, 300000); // poll every 5 minutes
+
+      return () => clearInterval(interval);
     }
-
-    // Delay the stream connection to avoid immediate rate limiting
-    const timeout = setTimeout(() => {
-      const disconnect = connectNotificationStream((notification) => {
-        upsertNotification(notification);
-      });
-
-      return disconnect;
-    }, 2000);
-
-    return () => clearTimeout(timeout);
-  }, [role, upsertNotification, user]);
+  }, [loadNotifications, loading, notifications.length]);
 
   const value = {
     notifications,

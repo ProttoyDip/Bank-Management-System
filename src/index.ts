@@ -2,7 +2,9 @@ import "reflect-metadata";
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { initializeDataSource, AppDataSource, LocalDataSource } from "./data-source";
+import fs from "fs";
+import path from "path";
+import { initializeDataSource, applyDevelopmentSchemaPatches } from "./data-source";
 import routes from "./routes";
 import { errorHandler } from "./middleware/errorHandler";
 
@@ -12,19 +14,43 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ── Security Middleware ──────────────────────────────────
+// ── Security & Rate Limiting Middleware ────────────────────
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 
-app.use(helmet());
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per IP
-  message: 'Too many requests, please try again later.',
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: { error: "Too many requests, please try again later.", retryAfter: 900 }, // 15min
   standardHeaders: true,
   legacyHeaders: false,
+  handler: (req, res) => {
+    res.set('Retry-After', '900');
+    res.status(429).json({
+      error: "Too many requests from this IP, please try again later.",
+      retryAfter: 900
+    });
+  }
 });
-app.use(limiter);
+
+// Apply to ALL /api routes
+app.use('/api', limiter);
+
+// Specific tighter limits for sensitive routes
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10,
+  message: { error: "Too many login attempts, please wait 1 minute" }
+});
+
+const kycLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // Only 5 KYC submissions per hour per IP
+  message: { error: "KYC rate limit exceeded. Max 5/hour. Try again later." }
+});
+
+// ── Security ───────────────────────────────────────────────
+app.use(helmet());
 
 // ── CORS ──────────────────────────────────────────────────
 app.use(cors({
@@ -34,6 +60,11 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+const uploadsDir = path.resolve(process.cwd(), "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use("/uploads", express.static(uploadsDir));
 
 
 // ── Routes ───────────────────────────────────────────────
@@ -80,7 +111,10 @@ app.get("/", (_req, res) => {
     `);
 });
 
-app.use("/api", routes);
+// ── Routes with specific rate limits ──────────────────────
+app.use('/api/auth', authLimiter, routes);  
+app.use('/api/kyc', kycLimiter, routes);
+app.use('/api', routes);
 
 // ── Error Handler ────────────────────────────────────────
 app.use(errorHandler);
@@ -90,6 +124,9 @@ initializeDataSource()
     .then((dataSource) => {
         // Set the active dataSource for use in controllers
         (global as any).dataSource = dataSource;
+        return applyDevelopmentSchemaPatches(dataSource);
+    })
+    .then(() => {
         console.log("✅ Database connected successfully!");
         console.log(`📦 Tables synchronized (Code-First)`);
 

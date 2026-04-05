@@ -72,7 +72,7 @@ interface MonthlyTrend {
   withdrawals: number;
 }
 
-const MotionCard = motion(Card);
+const MotionCard = motion.create(Card);
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("en-US", {
@@ -428,8 +428,8 @@ export default function AdminDashboard() {
                   </Stack>
 
                   {transactionPieData.length > 0 ? (
-                    <Box sx={{ width: "100%", height: 300 }}>
-                      <ResponsiveContainer>
+                    <Box sx={{ width: "100%", height: 300, minWidth: 0 }}>
+                      <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie
                             data={transactionPieData}
@@ -493,8 +493,8 @@ export default function AdminDashboard() {
                   </Stack>
 
                   {transactionBarData.length > 0 ? (
-                    <Box sx={{ width: "100%", height: 300 }}>
-                      <ResponsiveContainer>
+                    <Box sx={{ width: "100%", height: 300, minWidth: 0 }}>
+                      <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={transactionBarData} layout="vertical">
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis type="number" />
@@ -547,8 +547,8 @@ export default function AdminDashboard() {
                   </Stack>
 
                   {monthlyTrendData.length > 0 ? (
-                    <Box sx={{ width: "100%", height: 300 }}>
-                      <ResponsiveContainer>
+                    <Box sx={{ width: "100%", height: 300, minWidth: 0 }}>
+                      <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={monthlyTrendData}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="month" />
