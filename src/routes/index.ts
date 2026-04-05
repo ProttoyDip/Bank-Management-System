@@ -8,6 +8,7 @@ import seedRoutes from "./seedRoutes";
 import employeeRoutes from "./employeeRoutes";
 import authRoutes from "./authRoutes";
 import adminRoutes from "./adminRoutes";
+import cardRoutes from "./cardRoutes";
 
 const router = Router();
 
@@ -92,5 +93,6 @@ router.use("/seed", seedRoutes);
 router.use("/employee", employeeRoutes);
 router.use("/auth", authRoutes);
 router.use("/admin", adminRoutes);
+router.use("/card", cardRoutes);
 
 export default router;

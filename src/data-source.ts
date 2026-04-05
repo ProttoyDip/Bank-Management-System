@@ -11,6 +11,8 @@ import { Ticket } from "./entity/Ticket"
 import { ActivityLog } from "./entity/ActivityLog"
 import { AdminSetting } from "./entity/AdminSetting"
 import { EmployeeInvite } from "./entity/EmployeeInvite"
+import { Card } from "./entity/Card"
+import { CardApplication } from "./entity/CardApplication"
 import * as dotenv from "dotenv"
 
 dotenv.config()
@@ -74,7 +76,7 @@ const localConfig: DataSourceOptions = getDBConfig();
 
 // Standard TypeORM settings
 const baseOptions = {
-    synchronize: false, // Production ready: use manual migrations
+    synchronize: true, // Enable for code-first schema creation in Docker
     logging: true,
     entities: [
         User,
@@ -88,6 +90,8 @@ const baseOptions = {
         ActivityLog,
         AdminSetting,
         EmployeeInvite,
+        Card,
+        CardApplication,
     ],
 
     migrations: [],

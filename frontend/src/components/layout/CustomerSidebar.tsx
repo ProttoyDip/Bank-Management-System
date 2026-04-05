@@ -18,12 +18,14 @@ import RequestQuoteIcon from "@mui/icons-material/RequestQuote";
 import SettingsIcon from "@mui/icons-material/Settings";
 import LogoutIcon from "@mui/icons-material/Logout";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
+import CreditCardIcon from "@mui/icons-material/CreditCard";
 import { useAuth } from "../../context/AuthContext";
 import { useThemeContext } from "../../context/ThemeContext";
 
 const customerNavItems = [
   { label: "Dashboard", path: "/customer/dashboard", icon: <DashboardIcon /> },
   { label: "My Accounts", path: "/customer/accounts", icon: <AccountBalanceIcon /> },
+  { label: "My Card", path: "/customer/card", icon: <CreditCardIcon /> },
   { label: "Transactions", path: "/customer/transactions", icon: <SwapHorizIcon /> },
   { label: "Loans", path: "/customer/loans", icon: <RequestQuoteIcon /> },
   { label: "Settings", path: "/customer/settings", icon: <SettingsIcon /> },

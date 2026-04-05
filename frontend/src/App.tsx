@@ -44,6 +44,8 @@ import EmployeeLoans from "./pages/employee/EmployeeLoans";
 import EmployeeKyc from "./pages/employee/EmployeeKyc";
 import EmployeeSupport from "./pages/employee/EmployeeSupport";
 import EmployeeReports from "./pages/employee/EmployeeReports";
+import CardPage from "./pages/CardPage";
+import CardApplicationsPage from "./pages/admin/CardApplicationsPage";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 function ThemedApp() {
@@ -78,6 +80,7 @@ function ThemedApp() {
                     <Route path="reports" element={<AdminReportsPage />} />
                     <Route path="settings" element={<AdminSettingsPage />} />
                     <Route path="logs" element={<AdminAuditLogsPage />} />
+                    <Route path="card-applications" element={<CardApplicationsPage />} />
                   </Route>
                 </Route>
 
@@ -104,6 +107,7 @@ function ThemedApp() {
                     <Route path="transfer" element={<Transfer />} />
                     <Route path="loans" element={<LoanList />} />
                     <Route path="settings" element={<Settings />} />
+                    <Route path="card" element={<CardPage />} />
                   </Route>
                 </Route>
 
