@@ -109,7 +109,8 @@ export default function CustomerKyc() {
 
   const statusBadge = useMemo(() => {
     const status = currentKyc?.status || "Not Submitted";
-    if (status === "Verified") return <Chip color="success" label="Verified" />;
+    if (status === "Admin Verified") return <Chip color="success" label="Admin Verified" />;
+    if (status === "Employee Approved") return <Chip color="info" label="Employee Approved" />;
     if (status === "Rejected") return <Chip color="error" label="Rejected" />;
     if (status === "Pending") return <Chip color="warning" label="Pending Review" />;
     return <Chip label="Not Submitted" />;
@@ -431,4 +432,3 @@ export default function CustomerKyc() {
     </Box>
   );
 }
-

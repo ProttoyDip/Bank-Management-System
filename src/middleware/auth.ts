@@ -16,6 +16,49 @@ export interface AuthRequest extends Request {
     };
 }
 
+function parsePermissions(permissions: unknown): string[] {
+    if (!permissions) {
+        return [];
+    }
+
+    if (Array.isArray(permissions)) {
+        return permissions
+            .map((permission) => String(permission || "").trim())
+            .filter(Boolean);
+    }
+
+    if (typeof permissions !== "string") {
+        return [];
+    }
+
+    const raw = permissions.trim();
+    if (!raw) {
+        return [];
+    }
+
+    try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+            return parsed
+                .map((permission) => String(permission || "").trim())
+                .filter(Boolean);
+        }
+        if (parsed && typeof parsed === "object") {
+            return Object.entries(parsed)
+                .filter(([, value]) => Boolean(value))
+                .map(([key]) => String(key || "").trim())
+                .filter(Boolean);
+        }
+    } catch {
+        // Fall through to comma-separated parsing.
+    }
+
+    return raw
+        .split(",")
+        .map((permission) => permission.trim())
+        .filter(Boolean);
+}
+
 function readCookie(req: Request, name: string): string | null {
     const cookieHeader = req.headers.cookie;
     if (!cookieHeader) {
@@ -52,7 +95,8 @@ function extractBearerToken(authHeader: string | string[] | undefined): string |
 }
 
 export function verifyToken(req: AuthRequest, res: Response, next: NextFunction): void {
-    const token = extractBearerToken(req.headers.authorization) || readCookie(req, "token");
+    const queryToken = typeof req.query?.token === "string" ? req.query.token.trim() : null;
+    const token = extractBearerToken(req.headers.authorization) || readCookie(req, "token") || queryToken;
 
     if (!token) {
         res.status(401).json({ error: "Authentication required. No token provided." });
@@ -167,4 +211,29 @@ export function requireSuperAdmin(req: AuthRequest, res: Response, next: NextFun
     }
 
     next();
+}
+
+/**
+ * Middleware to check invite-management capability for admin users.
+ * Access is granted to Super Admin or admins with inviteEmployees permission.
+ */
+export function requireInviteEmployeeAccess(req: AuthRequest, res: Response, next: NextFunction): void {
+    if (!req.user) {
+        res.status(401).json({ success: false, message: "Authentication required" });
+        return;
+    }
+
+    const accessLevel = String(req.user.accessLevel || "").trim();
+    if (accessLevel === "Super Admin") {
+        next();
+        return;
+    }
+
+    const permissions = parsePermissions(req.user.permissions);
+    if (permissions.includes("inviteEmployees")) {
+        next();
+        return;
+    }
+
+    res.status(403).json({ success: false, message: "Invite management access required" });
 }

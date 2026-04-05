@@ -56,7 +56,7 @@ export const employeeService = {
     (await api.get<ApiResponse<KycRequest[]>>("/employee/kyc", { params: { status } })).data.data,
 
   verifyKyc: async (id: number, remarks?: string) =>
-    (await api.put<ApiResponse<KycRequest>>(`/employee/kyc/${id}/verify`, { remarks })).data.data,
+    (await api.put<ApiResponse<KycRequest>>(`/employee/kyc/${id}/approve`, { remarks })).data.data,
 
   getTickets: async (status?: string) =>
     (await api.get<ApiResponse<Ticket[]>>("/employee/tickets", { params: status ? { status } : {} })).data.data,

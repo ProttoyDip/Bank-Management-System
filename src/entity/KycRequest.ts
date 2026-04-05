@@ -11,7 +11,8 @@ import { User } from "./User";
 
 export enum KycStatus {
     PENDING = "Pending",
-    VERIFIED = "Verified",
+    EMPLOYEE_APPROVED = "Employee Approved",
+    ADMIN_VERIFIED = "Admin Verified",
     REJECTED = "Rejected",
 }
 

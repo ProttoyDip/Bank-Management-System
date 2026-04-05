@@ -59,7 +59,7 @@ api.interceptors.request.use(
 );
 
 const MIN_RETRY_MS = 5000;
-const MAX_RETRY_MS = 60000;
+const MAX_RETRY_MS = 15000;
 
 const parseRetryAfter = (header: string | undefined): number | undefined => {
   if (!header) return undefined;
@@ -94,7 +94,7 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // 429 Rate limit handling with a single retry and server-supplied Retry-After when available
+    // 429 handling: short automatic retry only for brief server backoff.
     if (error.response?.status === 429) {
       const retryAfterHeader = error.response.headers?.['retry-after'];
       const retryAfterSeconds = parseRetryAfter(retryAfterHeader);
@@ -103,9 +103,10 @@ api.interceptors.response.use(
         : Math.min(1000 * Math.pow(2, (originalRequest._retryCount || 0)), MAX_RETRY_MS);
 
       globalRateLimitUntil = Date.now() + Math.max(waitTime, MIN_RETRY_MS);
-      console.warn(`Rate limited. Retrying in ${Math.round(waitTime / 1000)}s...`);
+      console.warn(`Rate limited. Backing off for ${Math.round(waitTime / 1000)}s.`);
 
-      if ((originalRequest._retryCount || 0) < 1) {
+      const shouldAutoRetry = waitTime <= 5000;
+      if (shouldAutoRetry && (originalRequest._retryCount || 0) < 1) {
         originalRequest._retryCount = (originalRequest._retryCount || 0) + 1;
         originalRequest._bypassRateLimitLock = true;
         await new Promise(resolve => setTimeout(resolve, waitTime));

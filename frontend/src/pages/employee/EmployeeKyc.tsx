@@ -42,7 +42,8 @@ export default function EmployeeKyc() {
           <Typography variant="h6" mb={2}>KYC Verification System</Typography>
           <TextField select label="Status" value={status} onChange={(e) => setStatus(e.target.value)} sx={{ minWidth: 240 }}>
             <MenuItem value="Pending">Pending</MenuItem>
-            <MenuItem value="Verified">Verified</MenuItem>
+            <MenuItem value="Employee Approved">Employee Approved</MenuItem>
+            <MenuItem value="Admin Verified">Admin Verified</MenuItem>
             <MenuItem value="Rejected">Rejected</MenuItem>
           </TextField>
         </CardContent>
@@ -76,7 +77,14 @@ export default function EmployeeKyc() {
                     />
                   </TableCell>
                   <TableCell align="right">
-                    <Button size="small" variant="contained" onClick={() => verify(row.id)}>Verify</Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      onClick={() => verify(row.id)}
+                      disabled={row.status !== "Pending"}
+                    >
+                      Employee Approve
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}

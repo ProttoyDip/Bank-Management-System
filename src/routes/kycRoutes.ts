@@ -5,7 +5,7 @@ import { getDataSource } from "../data-source";
 import { KycRequest, KycStatus } from "../entity/KycRequest";
 import { User } from "../entity/User";
 import { saveKycDocument } from "../utils/kycStorage";
-import { buildNotification, publishNotification } from "../utils/notificationHub";
+import { createRoleNotifications, createUserNotification } from "../utils/notificationService";
 
 const router = Router();
 
@@ -168,7 +168,10 @@ router.post("/submit", async (req: AuthRequest, res: Response): Promise<void> =>
             take: 1,
         });
 
-        if (latest[0] && [KycStatus.PENDING, KycStatus.VERIFIED].includes(latest[0].status as KycStatus)) {
+        if (
+            latest[0]
+            && [KycStatus.PENDING, KycStatus.EMPLOYEE_APPROVED, KycStatus.ADMIN_VERIFIED].includes(latest[0].status as KycStatus)
+        ) {
             res.status(409).json({
                 success: false,
                 message: "A KYC submission is already pending or approved for this account",
@@ -246,19 +249,16 @@ router.post("/submit", async (req: AuthRequest, res: Response): Promise<void> =>
             user: user || undefined,
         } as KycRequest);
 
-        const customerNotification = buildNotification({
-            title: "KYC Submitted",
-            message: "Your KYC submission has been received and is awaiting review.",
-            type: "System",
+        await createUserNotification({
+            userId: req.user.id,
+            message: "Your KYC submission has been received and is pending employee review.",
+            type: "kyc",
         });
-        const adminNotification = buildNotification({
-            title: "New KYC Submission",
-            message: `${parsed.data.fullName} submitted a new KYC request.`,
-            type: "Warning",
-        });
-
-        publishNotification(customerNotification, { role: "Customer", userId: req.user.id });
-        publishNotification(adminNotification, { role: "Admin" });
+        await createRoleNotifications(
+            "Employee",
+            `${parsed.data.fullName} submitted a new KYC request for review.`,
+            "kyc"
+        );
 
         res.status(201).json({
             success: true,

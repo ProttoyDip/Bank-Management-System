@@ -9,6 +9,7 @@ import { KycRequest, KycStatus } from "../entity/KycRequest";
 import { Ticket, TicketStatus } from "../entity/Ticket";
 import { ActivityLog } from "../entity/ActivityLog";
 import { generateReferenceNumber } from "../utils/helpers";
+import { createRoleNotifications } from "../utils/notificationService";
 
 const toMoneyNumber = (value: unknown): number => {
     const parsed = Number(value);
@@ -574,6 +575,13 @@ export class EmployeeOpsController {
             }
 
             const updated = await loanRepo.save(loan);
+            if (status === LoanStatus.UNDER_REVIEW_ADMIN) {
+                await createRoleNotifications(
+                    "Admin",
+                    `Loan ${loan.loanNumber} is employee-approved and awaiting admin decision.`,
+                    "loan"
+                );
+            }
             await logEmployeeActivity(
                 req.user!.employeeId!,
                 status === LoanStatus.UNDER_REVIEW_ADMIN ? "Forwarded Loan To Admin Review" : "Rejected Loan",
@@ -621,20 +629,29 @@ export class EmployeeOpsController {
             const repo = getDataSource().getRepository(KycRequest);
             const row = await repo.findOneBy({ id });
             if (!row) {
-                return res.status(404).json({ error: "KYC request not found" });
+                return res.status(404).json({ success: false, message: "KYC request not found" });
             }
 
-            row.status = KycStatus.VERIFIED;
+            if (row.status !== KycStatus.PENDING) {
+                return res.status(400).json({ success: false, message: "Only pending KYC can be employee-approved" });
+            }
+
+            row.status = KycStatus.EMPLOYEE_APPROVED;
             row.remarks = remarks || row.remarks;
             row.verifiedByEmployeeId = req.user!.employeeId!;
             row.verifiedAt = new Date();
             const updated = await repo.save(row);
+            await createRoleNotifications(
+                "Admin",
+                `KYC ${row.id} was employee-approved and is awaiting final admin verification.`,
+                "kyc"
+            );
 
-            await logEmployeeActivity(req.user!.employeeId!, "Verified KYC", `KYC ${id}`);
-            return res.json({ message: "KYC verified", data: updated });
+            await logEmployeeActivity(req.user!.employeeId!, "Employee Approved KYC", `KYC ${id}`);
+            return res.json({ success: true, message: "KYC employee-approved", data: updated });
         } catch (error) {
             console.error("Verify KYC error:", error);
-            return res.status(500).json({ error: "Internal server error" });
+            return res.status(500).json({ success: false, message: "Internal server error" });
         }
     }
 

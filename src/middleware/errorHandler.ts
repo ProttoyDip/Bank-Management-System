@@ -14,7 +14,8 @@ export function errorHandler(
     if (err.status === 429 || res.statusCode === 429) {
         res.set('Retry-After', '900');
         res.status(429).json({
-            error: "Rate limit exceeded. Please try again later.",
+            success: false,
+            message: "Rate limit exceeded. Please try again later.",
             retryAfter: 900
         });
         return;
@@ -35,6 +36,7 @@ export function errorHandler(
     }
 
     res.status(500).json({
+        success: false,
         message: err.message || "Internal Server Error",
     });
 }

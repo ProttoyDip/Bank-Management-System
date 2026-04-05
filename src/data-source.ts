@@ -14,6 +14,7 @@ import { Ticket } from "./entity/Ticket"
 import { ActivityLog } from "./entity/ActivityLog"
 import { AdminSetting } from "./entity/AdminSetting"
 import { EmployeeInvite } from "./entity/EmployeeInvite"
+import { Notification } from "./entity/Notification"
 
 let cachedConfig: DataSourceOptions | null = null;
 
@@ -73,6 +74,7 @@ const baseOptions = {
         ActivityLog,
         AdminSetting,
         EmployeeInvite,
+        Notification,
     ],
 
     migrations: [],
@@ -142,6 +144,20 @@ export async function applyDevelopmentSchemaPatches(dataSource: DataSource): Pro
         `IF COL_LENGTH('dbo.employees', 'permissions') IS NULL ALTER TABLE dbo.employees ADD permissions nvarchar(1000) NULL;`,
         `IF COL_LENGTH('dbo.kyc', 'documentRef') IS NOT NULL ALTER TABLE dbo.kyc ALTER COLUMN documentRef nvarchar(max) NULL;`,
         `IF COL_LENGTH('dbo.kyc', 'remarks') IS NOT NULL ALTER TABLE dbo.kyc ALTER COLUMN remarks nvarchar(max) NULL;`,
+        `UPDATE dbo.kyc SET status = 'Admin Verified' WHERE status = 'Verified';`,
+        `IF OBJECT_ID('dbo.notifications', 'U') IS NULL
+            CREATE TABLE dbo.notifications (
+                id int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                userId int NULL,
+                message nvarchar(max) NOT NULL,
+                type nvarchar(50) NOT NULL CONSTRAINT DF_notifications_type DEFAULT 'system',
+                isRead bit NOT NULL CONSTRAINT DF_notifications_isRead DEFAULT 0,
+                createdAt datetime2 NOT NULL CONSTRAINT DF_notifications_createdAt DEFAULT GETDATE(),
+                updatedAt datetime2 NOT NULL CONSTRAINT DF_notifications_updatedAt DEFAULT GETDATE(),
+                CONSTRAINT FK_notifications_user FOREIGN KEY (userId) REFERENCES dbo.users(id) ON DELETE CASCADE
+            );`,
+        `IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_notifications_user_created' AND object_id = OBJECT_ID('dbo.notifications'))
+            CREATE INDEX IX_notifications_user_created ON dbo.notifications(userId, createdAt DESC);`,
     ];
 
     for (const statement of statements) {

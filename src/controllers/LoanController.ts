@@ -5,6 +5,7 @@ import { User } from "../entity/User";
 import { Account } from "../entity/Account";
 import { generateLoanNumber, calculateEMI } from "../utils/helpers";
 import { AuthRequest } from "../middleware/auth";
+import { createRoleNotifications } from "../utils/notificationService";
 
 export class LoanController {
     // POST /api/loans — Create a new loan
@@ -92,6 +93,11 @@ export class LoanController {
             });
 
             const savedLoan = await loanRepository.save(loan);
+            await createRoleNotifications(
+                "Employee",
+                `New loan application ${savedLoan.loanNumber} requires employee review.`,
+                "loan"
+            );
 
             res.status(201).json({
                 message: "Loan application created successfully",
@@ -180,4 +186,3 @@ export class LoanController {
         });
     }
 }
-

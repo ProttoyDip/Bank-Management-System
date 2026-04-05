@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import { Brackets, FindOptionsWhere, ILike } from "typeorm";
 import { z } from "zod";
-import { verifyAdminRole, verifyToken, AuthRequest, requireSuperAdmin } from "../middleware/auth";
+import { verifyAdminRole, verifyToken, AuthRequest, requireInviteEmployeeAccess, requireSuperAdmin } from "../middleware/auth";
 import { getDataSource } from "../data-source";
 import { User } from "../entity/User";
 import { Employee } from "../entity/Employee";
@@ -17,7 +17,7 @@ import { hashPassword } from "../utils/hashPassword";
 import { generateAdminId } from "../utils/helpers";
 import { sendEmployeeInviteEmail, sendKycDecisionEmail, getEmailDiagnostics } from "../utils/emailService";
 import { generateInviteToken } from "../utils/inviteToken";
-import { buildNotification, publishNotification } from "../utils/notificationHub";
+import { createUserNotification } from "../utils/notificationService";
 
 const router = Router();
 const CUSTOMER_ROLE = "Customer";
@@ -61,7 +61,7 @@ const loanDecisionSchema = z.object({
 });
 
 const kycVerifySchema = z.object({
-    status: z.enum(["Verified", "Rejected"]),
+    status: z.enum(["Admin Verified", "Rejected"]),
     remarks: z.string().trim().max(500).optional(),
 });
 
@@ -111,7 +111,7 @@ function sendValidationError(res: Response, message: string) {
 
 function buildInviteUrl(token: string): string {
     const frontendBase = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
-    return `${frontendBase}/accept-invite?token=${encodeURIComponent(token)}`;
+    return `${frontendBase}/employee/register?token=${encodeURIComponent(token)}`;
 }
 
 type KycDocumentPreview = {
@@ -421,8 +421,8 @@ async function getAdminDashboardStats() {
         acc[String(row.status || "Unknown")] = Number(row.count || 0);
         return acc;
     }, {});
-    const pendingKyc = kycStatusSummary[KycStatus.PENDING] || 0;
-    const approvedKyc = kycStatusSummary[KycStatus.VERIFIED] || 0;
+    const pendingKyc = kycStatusSummary[KycStatus.EMPLOYEE_APPROVED] || 0;
+    const approvedKyc = kycStatusSummary[KycStatus.ADMIN_VERIFIED] || 0;
     const rejectedKyc = kycStatusSummary[KycStatus.REJECTED] || 0;
 
     return {
@@ -457,7 +457,7 @@ async function getAdminDashboardStats() {
 
 async function applyKycDecision(req: AuthRequest, res: Response, decision: "Approved" | "Rejected"): Promise<Response | void> {
     const parsed = kycVerifySchema.safeParse({
-        status: decision === "Approved" ? "Verified" : "Rejected",
+        status: decision === "Approved" ? "Admin Verified" : "Rejected",
         remarks: req.body?.remarks,
     });
 
@@ -480,9 +480,12 @@ async function applyKycDecision(req: AuthRequest, res: Response, decision: "Appr
             return res.status(404).json({ error: "KYC request not found" });
         }
 
-        request.status = decision === "Approved" ? KycStatus.VERIFIED : KycStatus.REJECTED;
+        if (decision === "Approved" && request.status !== KycStatus.EMPLOYEE_APPROVED) {
+            return res.status(400).json({ success: false, message: "KYC must be employee-approved before admin verification" });
+        }
+
+        request.status = decision === "Approved" ? KycStatus.ADMIN_VERIFIED : KycStatus.REJECTED;
         request.remarks = parsed.data.remarks || null;
-        request.verifiedByEmployeeId = getAdminActorId(req);
         request.verifiedAt = new Date();
 
         await kycRepository.save(request);
@@ -515,19 +518,13 @@ async function applyKycDecision(req: AuthRequest, res: Response, decision: "Appr
             console.error("KYC notification email failed:", emailError);
         }
 
-        const notification = buildNotification({
-            title: `KYC ${decision}`,
+        await createUserNotification({
+            userId: request.userId,
             message: decision === "Approved"
-                ? "Your KYC submission has been approved."
-                : "Your KYC submission has been rejected. Please review the remarks and resubmit if needed.",
-            type: decision === "Approved" ? "System" : "Warning",
+                ? "Your KYC has been verified."
+                : "Your KYC has been rejected. Please review remarks and resubmit.",
+            type: "kyc",
         });
-        publishNotification(notification, { role: "Customer", userId: request.userId });
-        publishNotification(buildNotification({
-            title: "KYC Decision Recorded",
-            message: `Admin marked KYC ${request.id} as ${decision.toLowerCase()}.`,
-            type: "System",
-        }), { role: "Admin" });
 
         return res.json({
             success: true,
@@ -536,7 +533,7 @@ async function applyKycDecision(req: AuthRequest, res: Response, decision: "Appr
         });
     } catch (error) {
         console.error("KYC decision error:", error);
-        return res.status(500).json({ error: "Failed to update KYC request" });
+        return res.status(500).json({ success: false, message: "Failed to update KYC request" });
     }
 }
 
@@ -568,7 +565,7 @@ router.get("/stats", async (_req, res) => {
     }
 });
 
-router.post("/invite-employee", requireSuperAdmin, async (req, res) => {
+router.post("/invite-employee", requireInviteEmployeeAccess, async (req, res) => {
     const { email } = req.body;
 
     if (!email || typeof email !== 'string' || !email.includes('@')) {
@@ -581,27 +578,41 @@ router.post("/invite-employee", requireSuperAdmin, async (req, res) => {
         const userRepository = dataSource.getRepository(User);
 
         const emailLower = email.toLowerCase();
-        const existingInvite = await inviteRepository.findOne({ where: { email: emailLower, status: "Pending" } });
-        if (existingInvite) {
+        const existingInvite = await inviteRepository.findOne({ where: { email: emailLower } });
+        if (existingInvite && String(existingInvite.status).toLowerCase() === "pending") {
             return res.status(409).json({ success: false, message: "A pending invite already exists for this email" });
+        }
+
+        if (existingInvite && String(existingInvite.status).toLowerCase() === "accepted") {
+            return res.status(409).json({ success: false, message: "This invite has already been accepted" });
         }
 
         const existingUser = await userRepository.findOne({ where: { email: emailLower } });
         if (existingUser) {
-            return res.status(409).json({ success: false, message: "A user with this email already exists" });
+            if (String(existingUser.role || "").toLowerCase() !== "employee") {
+                return res.status(409).json({ success: false, message: "Email already used by another account" });
+            }
+            return res.status(409).json({ success: false, message: "Employee account already exists for this email" });
         }
 
-        const invite = inviteRepository.create({
-            email: emailLower,
-            name: 'Employee',
-            department: 'General',
-            position: 'Employee',
-            salary: 0,
-            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-            notes: `Invited to join as Employee on ${new Date().toISOString()}`,
-            status: "Pending",
-            createdByAdminId: getAdminActorId(req),
-        });
+        const invite = existingInvite
+            ? Object.assign(existingInvite, {
+                status: "Pending",
+                expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                notes: `Invited to join as Employee on ${new Date().toISOString()}`.slice(0, 255),
+                createdByAdminId: getAdminActorId(req),
+            })
+            : inviteRepository.create({
+                email: emailLower,
+                name: 'Employee',
+                department: 'General',
+                position: 'Employee',
+                salary: 0,
+                expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+                notes: `Invited to join as Employee on ${new Date().toISOString()}`,
+                status: "Pending",
+                createdByAdminId: getAdminActorId(req),
+            });
 
         const savedInvite = await inviteRepository.save(invite);
         const inviteToken = generateInviteToken({
@@ -631,7 +642,7 @@ router.post("/invite-employee", requireSuperAdmin, async (req, res) => {
     }
 });
 
-router.post("/invites/:id/resend", requireSuperAdmin, async (req, res) => {
+router.post("/invites/:id/resend", requireInviteEmployeeAccess, async (req, res) => {
     try {
         const inviteRepository = getDataSource().getRepository(EmployeeInvite);
         const invite = await inviteRepository.findOne({ where: { id: Number(req.params.id) } });
@@ -677,7 +688,7 @@ router.post("/invites/:id/resend", requireSuperAdmin, async (req, res) => {
     }
 });
 
-router.get("/smtp-diagnostics", requireSuperAdmin, async (_req, res) => {
+router.get("/smtp-diagnostics", requireInviteEmployeeAccess, async (_req, res) => {
     try {
         const diagnostics = await getEmailDiagnostics();
         res.json({ success: true, data: diagnostics });
@@ -687,7 +698,7 @@ router.get("/smtp-diagnostics", requireSuperAdmin, async (_req, res) => {
     }
 });
 
-router.get("/invites", requireSuperAdmin, async (_req, res) => {
+router.get("/invites", requireInviteEmployeeAccess, async (_req, res) => {
     try {
         const invites = await getDataSource().getRepository(EmployeeInvite).find({
             order: { createdAt: "DESC" },
@@ -700,7 +711,7 @@ router.get("/invites", requireSuperAdmin, async (_req, res) => {
     }
 });
 
-router.delete("/invites/:id", requireSuperAdmin, async (req, res) => {
+router.delete("/invites/:id", requireInviteEmployeeAccess, async (req, res) => {
     try {
         const inviteRepository = getDataSource().getRepository(EmployeeInvite);
         const invite = await inviteRepository.findOne({ where: { id: Number(req.params.id) } });
@@ -1210,6 +1221,11 @@ router.put("/loans/:id/approve", async (req, res) => {
         });
 
         await logAdminAction(req, "APPROVE_LOAN", `Loan ${req.params.id} approved`);
+        await createUserNotification({
+            userId: result.loan.userId,
+            message: `Your loan ${result.loan.loanNumber} has been approved and disbursed.`,
+            type: "loan",
+        });
 
         res.json({ success: true, data: result, message: "Loan approved successfully" });
     } catch (error) {
@@ -1258,6 +1274,11 @@ router.put("/loans/:id/reject", async (req, res) => {
 
         const updated = await loanRepository.save(loan);
         await logAdminAction(req, "REJECT_LOAN", `Loan ${loan.id} rejected`);
+        await createUserNotification({
+            userId: loan.userId,
+            message: `Your loan ${loan.loanNumber} has been rejected.`,
+            type: "loan",
+        });
 
         res.json({ success: true, data: updated, message: "Loan rejected successfully" });
     } catch (error) {
@@ -1310,8 +1331,8 @@ router.get("/kyc", async (req, res) => {
             .getManyAndCount();
 
         const [pending, approved, rejected] = await Promise.all([
-            repository.count({ where: { status: KycStatus.PENDING } }),
-            repository.count({ where: { status: KycStatus.VERIFIED } }),
+            repository.count({ where: { status: KycStatus.EMPLOYEE_APPROVED } }),
+            repository.count({ where: { status: KycStatus.ADMIN_VERIFIED } }),
             repository.count({ where: { status: KycStatus.REJECTED } }),
         ]);
 
@@ -1420,7 +1441,7 @@ router.post("/kyc/:id/approve", async (req, res) => applyKycDecision(req as Auth
 router.post("/kyc/:id/reject", async (req, res) => applyKycDecision(req as AuthRequest, res, "Rejected"));
 
 router.put("/kyc/:id/verify", async (req, res) => {
-    const status = String(req.body?.status || "Verified").trim().toLowerCase();
+    const status = String(req.body?.status || "Admin Verified").trim().toLowerCase();
     return status === "rejected"
         ? applyKycDecision(req as AuthRequest, res, "Rejected")
         : applyKycDecision(req as AuthRequest, res, "Approved");
