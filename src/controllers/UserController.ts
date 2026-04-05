@@ -9,6 +9,7 @@ import { generateEmployeeId, generateAccountNumber } from "../utils/helpers";
 import { sendVerificationEmail } from "../utils/emailService";
 import { AuthRequest } from "../middleware/auth";
 import { userLoginSchema, userCreateSchema, customerRegisterSchema } from "../validators/userSchema";
+import { ZodError } from "zod";
 
 const generateVerificationCode = (): string => {
     return Math.floor(100000 + Math.random() * 900000).toString();
@@ -270,8 +271,11 @@ export class UserController {
             });
 
         } catch (error: any) {
+            const validationMessage = error instanceof ZodError
+                ? error.issues[0]?.message || error.message || "Validation failed"
+                : (error as Error)?.message || "Validation failed";
             res.status(400).json({
-                error: error.errors?.[0]?.message || "Validation failed"
+                error: validationMessage
             });
         }
     }
@@ -349,8 +353,11 @@ export class UserController {
             if (queryRunner.isTransactionActive) {
                 await queryRunner.rollbackTransaction();
             }
+            const validationMessage = error instanceof ZodError
+                ? error.issues[0]?.message || error.message || "Validation failed"
+                : (error as Error)?.message || "Validation failed";
             res.status(400).json({
-                error: error.errors?.[0]?.message || "Validation failed"
+                error: validationMessage
             });
         } finally {
             if (!queryRunner.isReleased) {
