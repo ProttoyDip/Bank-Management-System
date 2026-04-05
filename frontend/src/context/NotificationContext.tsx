@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { UserRole, Notification, NotificationType } from '../types';
+import { UserRole, Notification } from '../types';
 import notificationService, { connectNotificationStream } from '../services/notificationService';
 import { useAuth } from './AuthContext';
 
@@ -17,25 +17,11 @@ export const NotificationContext = createContext<NotificationContextType | undef
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
-  const [kycCache, setKycCache] = useState<{ timestamp: number } | null>(null);
   const { user } = useAuth();
 
   const role = user?.role as UserRole | undefined;
-  const userId = user?.id;
-
-  const getStorageKey = useCallback(() => {
-    const roleKey = role?.toLowerCase() || 'guest';
-    return `notifications_${roleKey}${userId ? `_${userId}` : ''}`;
-  }, [role, userId]);
-
-  const loadNotifications = useCallback(async (options: { skipKyc?: boolean } = {}) => {
+  const loadNotifications = useCallback(async () => {
     if (!user || !role) {
-      setNotifications([]);
-      setLoading(false);
-      return;
-    }
-
-    if (role === 'Customer' && !userId) {
       setNotifications([]);
       setLoading(false);
       return;
@@ -43,71 +29,38 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     setLoading(true);
     try {
-      let fetched: Notification[];
-      switch (role) {
-        case 'Customer': {
-          fetched = await notificationService.getCustomerNotifications(userId!, { skipKyc: options.skipKyc });
-          if (!options.skipKyc) {
-            setKycCache({ timestamp: Date.now() });
-          }
-          break;
-        }
-        case 'Admin':
-          fetched = await notificationService.getAdminNotifications();
-          break;
-        case 'Employee':
-          fetched = await notificationService.getEmployeeNotifications();
-          break;
-        default:
-          fetched = [];
-      }
-
-      const storageKey = getStorageKey();
-      const stored = localStorage.getItem(storageKey);
-      const storedMap = stored ? JSON.parse(stored) as Record<number, boolean> : {};
-
-      const merged = fetched.map(notif => ({
-        ...notif,
-        isRead: storedMap[notif.id] || notif.isRead
-      }));
-
-      setNotifications(merged);
-      localStorage.setItem(storageKey, JSON.stringify(storedMap));
+      const fetched = await notificationService.getNotifications();
+      setNotifications(fetched);
     } catch (error) {
       console.error('Failed to load notifications:', error);
     } finally {
       setLoading(false);
     }
-  }, [role, userId, getStorageKey]);
+  }, [role, user]);
 
   const markAsRead = useCallback((id: number) => {
     setNotifications(prev => {
-      const updated = prev.map(notif =>
-        notif.id === id ? { ...notif, isRead: true } : notif
-      );
-      const storageKey = getStorageKey();
-      const stored = localStorage.getItem(storageKey);
-      const storedMap = stored ? JSON.parse(stored) as Record<number, boolean> : {};
-      storedMap[id] = true;
-      localStorage.setItem(storageKey, JSON.stringify(storedMap));
-      return updated;
+      const hasTarget = prev.some((item) => item.id === id && !item.isRead);
+      if (!hasTarget) {
+        return prev;
+      }
+      notificationService.markAsRead(id).catch((error) => {
+        console.error('Failed to mark notification as read:', error);
+      });
+      return prev.map(notif => (notif.id === id ? { ...notif, isRead: true } : notif));
     });
-  }, [getStorageKey]);
+  }, []);
 
   const markAllAsRead = useCallback(() => {
     setNotifications(prev => {
-      const unreadIds = prev.filter(n => !n.isRead).map(n => n.id);
+      const unreadIds = prev.filter(n => !n.isRead).map(n => Number(n.id));
       if (unreadIds.length === 0) return prev;
-
-      const storageKey = getStorageKey();
-      const stored = localStorage.getItem(storageKey);
-      const storedMap = stored ? JSON.parse(stored) as Record<number, boolean> : {};
-      unreadIds.forEach(id => storedMap[id] = true);
-      localStorage.setItem(storageKey, JSON.stringify(storedMap));
-
+      Promise.all(unreadIds.map((id) => notificationService.markAsRead(id))).catch((error) => {
+        console.error('Failed to mark all notifications as read:', error);
+      });
       return prev.map(notif => ({ ...notif, isRead: true }));
     });
-  }, [getStorageKey]);
+  }, []);
 
   const upsertNotification = useCallback((notification: Notification) => {
     setNotifications((prev) => {
@@ -120,10 +73,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (user && role) {
-      const skipKyc = role === 'Customer' && kycCache !== null && Date.now() - kycCache.timestamp < 300000;
-      // Add a small delay for admin notifications to avoid competing with dashboard loads
-      const delay = role === 'Admin' ? 1000 : 0;
-      setTimeout(() => loadNotifications({ skipKyc }), delay);
+      loadNotifications();
     } else {
       setNotifications([]);
       setLoading(false);
@@ -136,28 +86,22 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
 
     const interval = setInterval(() => {
-      const skipKyc = role === 'Customer' && kycCache !== null && Date.now() - kycCache.timestamp < 300000;
-      loadNotifications({ skipKyc });
-    }, 300000); // 5 minutes
+      loadNotifications();
+    }, 60000);
 
     return () => clearInterval(interval);
-  }, [loadNotifications, role, user, kycCache]);
+  }, [loadNotifications, role, user]);
 
   useEffect(() => {
     if (!user || !role) {
       return;
     }
 
-    // Delay the stream connection to avoid immediate rate limiting
-    const timeout = setTimeout(() => {
-      const disconnect = connectNotificationStream((notification) => {
-        upsertNotification(notification);
-      });
+    const disconnect = connectNotificationStream((notification) => {
+      upsertNotification(notification);
+    });
 
-      return disconnect;
-    }, 2000);
-
-    return () => clearTimeout(timeout);
+    return disconnect;
   }, [role, upsertNotification, user]);
 
   const value = {

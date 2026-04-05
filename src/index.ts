@@ -18,17 +18,25 @@ const PORT = process.env.PORT || 3000;
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 
+const isProduction = String(process.env.NODE_ENV || "").toLowerCase() === "production";
+const generalWindowMs = Number(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
+const generalMax = Number(
+  process.env.RATE_LIMIT_MAX || (isProduction ? 300 : 2000)
+);
+
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: { error: "Too many requests, please try again later.", retryAfter: 900 }, // 15min
+  windowMs: generalWindowMs,
+  max: generalMax,
+  message: { success: false, message: "Too many requests, please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
-    res.set('Retry-After', '900');
+    const retryAfterSeconds = Math.max(1, Math.ceil(generalWindowMs / 1000));
+    res.set('Retry-After', String(retryAfterSeconds));
     res.status(429).json({
-      error: "Too many requests from this IP, please try again later.",
-      retryAfter: 900
+      success: false,
+      message: "Too many requests from this IP, please try again later.",
+      retryAfter: retryAfterSeconds
     });
   }
 });
@@ -40,13 +48,13 @@ app.use('/api', limiter);
 const authLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 10,
-  message: { error: "Too many login attempts, please wait 1 minute" }
+  message: { success: false, message: "Too many login attempts, please wait 1 minute" }
 });
 
 const kycLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 5, // Only 5 KYC submissions per hour per IP
-  message: { error: "KYC rate limit exceeded. Max 5/hour. Try again later." }
+  message: { success: false, message: "KYC rate limit exceeded. Max 5/hour. Try again later." }
 });
 
 // ── Security ───────────────────────────────────────────────

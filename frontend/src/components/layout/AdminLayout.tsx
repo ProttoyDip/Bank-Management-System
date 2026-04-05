@@ -75,7 +75,6 @@ export default function AdminLayout() {
         sx={{ 
           width: { md: DRAWER_WIDTH }, 
           flexShrink: { md: 0 },
-          display: { xs: "none", md: "block" },
         }}
       >
         <Drawer
@@ -131,6 +130,7 @@ export default function AdminLayout() {
             bgcolor: "background.paper", 
             borderBottom: "1px solid", 
             borderColor: "divider",
+            display: { xs: "none", md: "block" },
           }}
         >
           <Toolbar sx={{ gap: 2, px: { xs: 2, md: 3 } }}>

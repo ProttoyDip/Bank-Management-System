@@ -1,7 +1,7 @@
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { AuthProvider } from "./context/AuthContext";
-import { NotificationProvider } from "./context/notificationContext.tsx";
+import { NotificationProvider } from "./context/NotificationContext";
 import { SearchProvider } from "./context/SearchContext";
 import { ThemeProvider as ThemeContextProvider, useThemeContext } from "./context/ThemeContext";
 import AdminLayout from "./components/layout/AdminLayout";
@@ -65,6 +65,7 @@ function ThemedApp() {
                 <Route path="/verify-code" element={<PublicRoute><VerifyCode /></PublicRoute>} />
                 <Route path="/change-password" element={<PublicRoute><ChangePassword /></PublicRoute>} />
                 <Route path="/accept-invite" element={<PublicRoute><InviteAccept /></PublicRoute>} />
+                <Route path="/employee/register" element={<PublicRoute><InviteAccept /></PublicRoute>} />
 
                 <Route path="/admin" element={<ProtectedRoute allowedRoles={[UserRole.ADMIN]} />}>
                   <Route element={<AdminLayout />}>

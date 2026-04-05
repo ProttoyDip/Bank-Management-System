@@ -44,9 +44,14 @@ import api from "../../services/api";
 import { ApiResponse, AuditLogEntry, KycDocumentPreview, KycOverviewStats, KycRequest } from "../../types";
 
 type Decision = "Approved" | "Rejected";
-const STATUSES = ["ALL", "Pending", "Verified", "Rejected"];
+const STATUSES = ["ALL", "Pending", "Employee Approved", "Admin Verified", "Rejected"];
 const LIMITS = [10, 25, 50];
-const COLORS: Record<string, string> = { Pending: "#f59e0b", Verified: "#16a34a", Rejected: "#dc2626" };
+const COLORS: Record<string, string> = {
+  Pending: "#f59e0b",
+  "Employee Approved": "#0284c7",
+  "Admin Verified": "#16a34a",
+  Rejected: "#dc2626",
+};
 const RISK: Record<string, string> = { Low: "#16a34a", Medium: "#f59e0b", High: "#dc2626" };
 
 const fmt = (v?: string | Date | null) => (v ? new Date(v).toLocaleString() : "N/A");
@@ -76,7 +81,7 @@ export default function AdminKycDashboard() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("ALL");
+  const [status, setStatus] = useState("Employee Approved");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [page, setPage] = useState(0);
@@ -177,7 +182,11 @@ export default function AdminKycDashboard() {
   };
 
   const trend = useMemo(() => rowsByDay(rows), [rows]);
-  const statusData = useMemo(() => ["Pending", "Verified", "Rejected"].map((name) => ({ name, value: (stats as any)?.[name.toLowerCase()] || 0, color: COLORS[name] })), [stats]);
+  const statusData = useMemo(() => ([
+    { name: "Pending", value: Number(stats?.pending || 0), color: COLORS["Pending"] },
+    { name: "Admin Verified", value: Number(stats?.approved || 0), color: COLORS["Admin Verified"] },
+    { name: "Rejected", value: Number(stats?.rejected || 0), color: COLORS["Rejected"] },
+  ]), [stats]);
   const riskData = useMemo(() => {
     const tally = { Low: 0, Medium: 0, High: 0 };
     rows.forEach((r) => { const risk = String(r.riskLevel || "Medium"); if (risk in tally) tally[risk as keyof typeof tally] += 1; });
@@ -211,7 +220,7 @@ export default function AdminKycDashboard() {
         {[
           ["Total", stats?.total || total, <AnalyticsIcon />],
           ["Pending", stats?.pending || 0, <AssessmentIcon sx={{ color: COLORS.Pending }} />],
-          ["Approved", stats?.approved || 0, <VerifiedUserIcon sx={{ color: COLORS.Verified }} />],
+          ["Admin Verified", stats?.approved || 0, <VerifiedUserIcon sx={{ color: COLORS["Admin Verified"] }} />],
           ["Rejected", stats?.rejected || 0, <ShieldIcon sx={{ color: COLORS.Rejected }} />],
           ["Approval", `${stats?.approvalRate || 0}%`, <ReceiptLongIcon />],
         ].map(([label, value, icon]) => (
@@ -265,12 +274,12 @@ export default function AdminKycDashboard() {
                           <TableCell>{row.fullName || row.user?.name || "N/A"}</TableCell>
                           <TableCell>{row.user?.email || "N/A"}</TableCell>
                           <TableCell>{fmtShort(row.submittedDate || row.createdAt)}</TableCell>
-                          <TableCell><Chip size="small" label={row.status} color={(COLORS[row.status] ? (row.status === "Verified" ? "success" : row.status === "Rejected" ? "error" : "warning") : "default") as any} /></TableCell>
+                          <TableCell><Chip size="small" label={row.status} color={(row.status === "Admin Verified" ? "success" : row.status === "Rejected" ? "error" : row.status === "Employee Approved" ? "info" : "warning") as any} /></TableCell>
                           <TableCell><Chip size="small" label={`${row.riskLevel || "Medium"}${row.riskScore ? ` ${row.riskScore}` : ""}`} color={(row.riskLevel === "Low" ? "success" : row.riskLevel === "High" ? "error" : "warning") as any} /></TableCell>
                           <TableCell align="right">
                             <Stack direction="row" spacing={1} justifyContent="flex-end">
                               <Button size="small" startIcon={<VisibilityIcon />} onClick={() => openDetails(row)}>View</Button>
-                              {row.status === "Pending" && (
+                              {row.status === "Employee Approved" && (
                                 <>
                                   <Button size="small" color="success" variant="contained" startIcon={<CheckCircleIcon />} onClick={async () => { await openDetails(row); setDecision("Approved"); setRemarks(""); setDecisionOpen(true); }}>Approve</Button>
                                   <Button size="small" color="error" variant="outlined" startIcon={<CancelIcon />} onClick={async () => { await openDetails(row); setDecision("Rejected"); setRemarks(""); setDecisionOpen(true); }}>Reject</Button>
@@ -319,7 +328,7 @@ export default function AdminKycDashboard() {
                   <Typography variant="h6" sx={{ fontWeight: 800 }}>{selected.fullName || selected.user?.name || "Unknown"}</Typography>
                   <Typography variant="body2" color="text.secondary">{selected.user?.email || "N/A"}</Typography>
                   <Typography variant="body2" color="text.secondary">User ID: {selected.userId}</Typography>
-                  <Stack direction="row" spacing={1} sx={{ mt: 1 }}><Chip label={selected.status} color={(selected.status === "Verified" ? "success" : selected.status === "Rejected" ? "error" : "warning") as any} /><Chip label={`${selected.riskLevel || "Medium"} risk`} color={(selected.riskLevel === "Low" ? "success" : selected.riskLevel === "High" ? "error" : "warning") as any} /></Stack>
+                  <Stack direction="row" spacing={1} sx={{ mt: 1 }}><Chip label={selected.status} color={(selected.status === "Admin Verified" ? "success" : selected.status === "Rejected" ? "error" : selected.status === "Employee Approved" ? "info" : "warning") as any} /><Chip label={`${selected.riskLevel || "Medium"} risk`} color={(selected.riskLevel === "Low" ? "success" : selected.riskLevel === "High" ? "error" : "warning") as any} /></Stack>
                 </CardContent></Card>
                 <Card variant="outlined" sx={{ mt: 2 }}><CardContent>
                   <Typography variant="subtitle2" color="text.secondary">Risk Score</Typography>
@@ -375,7 +384,7 @@ export default function AdminKycDashboard() {
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Button onClick={() => setDetailsOpen(false)}>Close</Button>
-          {selected?.status === "Pending" && (
+          {selected?.status === "Employee Approved" && (
             <>
               <Button variant="contained" color="success" startIcon={<CheckCircleIcon />} onClick={() => { setDecision("Approved"); setRemarks(""); setDecisionOpen(true); }} disabled={saving}>Approve</Button>
               <Button variant="outlined" color="error" startIcon={<CancelIcon />} onClick={() => { setDecision("Rejected"); setRemarks(""); setDecisionOpen(true); }} disabled={saving}>Reject</Button>
