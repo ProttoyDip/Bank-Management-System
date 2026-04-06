@@ -6,7 +6,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import AdminSidebar from "./AdminSidebar";
 import { useAuth } from "../../context/AuthContext";
-import { useNotification } from "../../context/NotificationContext";
+import { useNotification } from "../../context/useNotification";
 import { Notification } from "../../types";
 
 const DRAWER_WIDTH = 260;
@@ -277,4 +277,3 @@ export default function AdminLayout() {
     </Box>
   );
 }
-

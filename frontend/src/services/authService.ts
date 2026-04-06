@@ -64,6 +64,11 @@ export const authService = {
    * Store token in localStorage
    */
   setToken(token: string): void {
+    if (!token || !token.trim()) {
+      localStorage.removeItem("token");
+      return;
+    }
+
     localStorage.setItem("token", token);
   },
 
@@ -91,4 +96,3 @@ export const authService = {
 };
 
 export default authService;
-

@@ -1,7 +1,10 @@
 import api from "./api";
 import { Notification, NotificationType } from "../types";
+import kycService from "./kycService";
 
-// ================= UTILITIES =================
+// ================= CACHE =================
+let adminKycCache: { data: any[]; timestamp: number } | null = null;
+const ADMIN_KYC_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 // 💰 Format currency (BDT - Taka)
 const formatCurrency = (amount: number) => {
@@ -21,12 +24,16 @@ const maskAccount = (acc?: string) => {
 
 export const notificationService = {
   // ================= CUSTOMER =================
-  async getCustomerNotifications(userId: number): Promise<Notification[]> {
+  async getCustomerNotifications(userId: number, options: { skipKyc?: boolean } = {}): Promise<Notification[]> {
     try {
-      const response = await api.get(`/transactions/user/${userId}?limit=5`);
-      const transactions = response.data.data || response.data || [];
-
-      return transactions.map((tx: any, index: number) => {
+      const transactionPromise = api.get(`/transactions/user/${userId}?limit=5`);
+      const kycPromise = options.skipKyc ? Promise.resolve(null) : kycService.getMyKyc();
+      const [txResult, kycResult] = await Promise.allSettled([transactionPromise, kycPromise]) as any[];
+      const kycRequest = kycResult?.status === 'fulfilled' ? kycResult.value : null;
+      const transactions = txResult.status === 'fulfilled'
+        ? txResult.value.data.data || txResult.value.data || []
+        : [];
+      const notifications = transactions.map((tx: any, index: number) => {
         const accountNumber = maskAccount(tx.account?.accountNumber);
         const amount = formatCurrency(tx.amount);
 
@@ -71,6 +78,23 @@ export const notificationService = {
           createdAt: tx.createdAt || new Date().toISOString(),
         };
       });
+
+      if (kycRequest) {
+        notifications.unshift({
+          id: Number(kycRequest.id) || 9000,
+          title: `KYC ${kycRequest.status || "Update"}`,
+          message: kycRequest.status === "Verified"
+            ? "Your KYC has been approved. All banking services are now available."
+            : kycRequest.status === "Rejected"
+              ? `Your KYC was rejected. ${kycRequest.remarks || "Please review the remarks and resubmit."}`
+              : "Your KYC submission is awaiting review.",
+          type: NotificationType.SYSTEM,
+          isRead: false,
+          createdAt: kycRequest.updatedAt || kycRequest.createdAt || new Date().toISOString(),
+        });
+      }
+
+      return notifications;
     } catch (error) {
       console.error("Error fetching customer notifications:", error);
       return getDefaultCustomerNotifications();
@@ -126,11 +150,26 @@ export const notificationService = {
   // ================= ADMIN =================
   async getAdminNotifications(): Promise<Notification[]> {
     try {
-      const loansResponse = await api.get("/loans?status=Pending");
-      const pendingLoans = loansResponse.data.data || loansResponse.data || [];
+      // Check cache for KYC data
+      const now = Date.now();
+      const kycPromise = adminKycCache && (now - adminKycCache.timestamp) < ADMIN_KYC_CACHE_DURATION
+        ? Promise.resolve({ data: { data: adminKycCache.data } })
+        : api.get("/admin/kyc?status=Pending&limit=5");
 
-      const usersResponse = await api.get("/users");
+      const [loansResponse, usersResponse, kycResponse] = await Promise.all([
+        api.get("/loans?status=Pending"),
+        api.get("/users"),
+        kycPromise,
+      ]);
+
+      const pendingLoans = loansResponse.data.data || loansResponse.data || [];
       const users = usersResponse.data.data || usersResponse.data || [];
+      const pendingKyc = kycResponse.data.data || [];
+
+      // Update cache if we made a fresh request
+      if (!adminKycCache || (now - adminKycCache.timestamp) >= ADMIN_KYC_CACHE_DURATION) {
+        adminKycCache = { data: pendingKyc, timestamp: now };
+      }
 
       const notifications: Notification[] = [];
 
@@ -159,6 +198,17 @@ export const notificationService = {
           createdAt: new Date().toISOString(),
         });
       }
+
+      pendingKyc.slice(0, 5).forEach((kyc: any, index: number) => {
+        notifications.push({
+          id: Number(kyc.id) || index + 3000,
+          title: "KYC Review Required",
+          message: `${kyc.fullName || kyc.user?.name || "A customer"} submitted a KYC request that needs review.`,
+          type: NotificationType.WARNING,
+          isRead: false,
+          createdAt: kyc.createdAt || new Date().toISOString(),
+        });
+      });
 
       return notifications;
     } catch (error) {
@@ -246,3 +296,24 @@ function getDefaultAdminNotifications(): Notification[] {
 }
 
 export default notificationService;
+
+export function connectNotificationStream(
+  onNotification: (notification: Notification) => void
+): () => void {
+  if (typeof window === "undefined" || !("EventSource" in window)) {
+    return () => undefined;
+  }
+
+  const source = new EventSource("/api/notifications/stream");
+
+  source.addEventListener("notification", (event) => {
+    const payload = JSON.parse((event as MessageEvent).data) as Notification;
+    onNotification(payload);
+  });
+
+  source.onerror = () => {
+    // The browser will retry automatically; keep the connection open.
+  };
+
+  return () => source.close();
+}

@@ -29,10 +29,10 @@ export class KycRequest {
     @Column({ type: "nvarchar", length: 255, nullable: true })
     documentType!: string | null;
 
-    @Column({ type: "nvarchar", length: 500, nullable: true })
+    @Column({ type: "nvarchar", length: "MAX", nullable: true })
     documentRef!: string | null;
 
-    @Column({ type: "nvarchar", length: 500, nullable: true })
+    @Column({ type: "nvarchar", length: "MAX", nullable: true })
     remarks!: string | null;
 
     @Column({ type: "int", nullable: true })

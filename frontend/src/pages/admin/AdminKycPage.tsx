@@ -45,7 +45,7 @@ interface AdminKycRequest {
   };
 }
 
-const MotionCard = motion(Card);
+const MotionCard = motion.create(Card);
 
 const AdminKycPage: React.FC = () => {
   const [kycRequests, setKycRequests] = useState<AdminKycRequest[]>([]);

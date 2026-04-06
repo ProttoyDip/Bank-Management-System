@@ -25,7 +25,7 @@ import CustomerSidebar from "./CustomerSidebar";
 import { useAuth } from "../../context/AuthContext";
 import { useThemeContext } from "../../context/ThemeContext";
 import { Notification, NotificationType } from "../../types";
-import { useNotification } from "../../context/NotificationContext";
+import { useNotification } from "../../context/useNotification";
 import { useSearch } from "../../context/SearchContext";
 import ClearIcon from "@mui/icons-material/Clear";
 

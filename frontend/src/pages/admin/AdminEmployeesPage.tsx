@@ -60,7 +60,7 @@ interface InviteFormState {
   email: string;
 }
 
-const MotionCard = motion(Card);
+const MotionCard = motion.create(Card);
 
 const getDisplayName = (employee: AdminEmployee) => {
   if (employee.name) return employee.name;

@@ -33,24 +33,36 @@ export default function Settings() {
   });
 
   useEffect(() => {
-    if (authUser) {
-      api.get<ApiResponse<User>>(`/users/${authUser.id}`).then((res) => {
-        const u = res.data.data;
-        setProfile({
-          name: u.name || "",
-          email: u.email || "",
-          phone: u.phone || "",
-          address: u.address || "",
-        });
-      }).catch(() => {
-        setProfile({
-          name: authUser.name || "",
-          email: authUser.email || "",
-          phone: "",
-          address: "",
-        });
-      });
+    if (!authUser) {
+      return;
     }
+
+    setProfile({
+      name: authUser.name || "",
+      email: authUser.email || "",
+      phone: authUser.phone || "",
+      address: authUser.address || "",
+    });
+
+    if (authUser.phone || authUser.address) {
+      return;
+    }
+
+    api.get<ApiResponse<User>>(`/users/${authUser.id}`).then((res) => {
+      const u = res.data.data;
+      setProfile({
+        name: u.name || "",
+        email: u.email || "",
+        phone: u.phone || "",
+        address: u.address || "",
+      });
+    }).catch(() => {
+      setProfile((prev) => ({
+        ...prev,
+        phone: authUser.phone || "",
+        address: authUser.address || "",
+      }));
+    });
   }, [authUser]);
   const [notifications, setNotifications] = useState({
     email: true,

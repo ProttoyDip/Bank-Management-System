@@ -1,7 +1,7 @@
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { AuthProvider } from "./context/AuthContext";
-import { NotificationProvider } from "./context/NotificationContext";
+import { NotificationProvider } from "./context/notificationContext.tsx";
 import { SearchProvider } from "./context/SearchContext";
 import { ThemeProvider as ThemeContextProvider, useThemeContext } from "./context/ThemeContext";
 import AdminLayout from "./components/layout/AdminLayout";
@@ -26,12 +26,13 @@ import EmployeeList from "./pages/employees/EmployeeList";
 import FinancialReports from "./pages/reports/FinancialReports";
 import Settings from "./pages/Settings";
 import CustomerAccounts from "./pages/customers/CustomerAccounts";
+import CustomerKyc from "./pages/customers/CustomerKyc";
 import AdminEmployeesPage from "./pages/admin/AdminEmployeesPage";
 import AdminCustomersPage from "./pages/admin/AdminCustomersPage";
 import AdminAccountsPage from "./pages/admin/AdminAccountsPage";
 import AdminTransactionsPage from "./pages/admin/AdminTransactionsPage";
 import AdminLoansPage from "./pages/admin/AdminLoansPage";
-import AdminKycPage from "./pages/admin/AdminKycPage";
+import AdminKycDashboard from "./pages/admin/AdminKycDashboard";
 import AdminReportsPage from "./pages/admin/AdminReportsPage";
 import AdminSettingsPage from "./pages/admin/AdminSettingsPage";
 import AdminAuditLogsPage from "./pages/admin/AdminAuditLogsPage";
@@ -74,7 +75,7 @@ function ThemedApp() {
                     <Route path="accounts" element={<AdminAccountsPage />} />
                     <Route path="transactions" element={<AdminTransactionsPage />} />
                     <Route path="loans" element={<AdminLoansPage />} />
-                    <Route path="kyc" element={<AdminKycPage />} />
+                    <Route path="kyc" element={<AdminKycDashboard />} />
                     <Route path="reports" element={<AdminReportsPage />} />
                     <Route path="settings" element={<AdminSettingsPage />} />
                     <Route path="logs" element={<AdminAuditLogsPage />} />
@@ -103,6 +104,7 @@ function ThemedApp() {
                     <Route path="transactions" element={<TransactionHistory />} />
                     <Route path="transfer" element={<Transfer />} />
                     <Route path="loans" element={<LoanList />} />
+                    <Route path="kyc" element={<CustomerKyc />} />
                     <Route path="settings" element={<Settings />} />
                   </Route>
                 </Route>

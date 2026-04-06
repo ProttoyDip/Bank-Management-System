@@ -16,9 +16,43 @@ export interface AuthRequest extends Request {
     };
 }
 
+function readCookie(req: Request, name: string): string | null {
+    const cookieHeader = req.headers.cookie;
+    if (!cookieHeader) {
+        return null;
+    }
+
+    const parts = cookieHeader.split(";").map((part) => part.trim());
+    for (const part of parts) {
+        const separatorIndex = part.indexOf("=");
+        if (separatorIndex <= 0) {
+            continue;
+        }
+
+        const key = part.slice(0, separatorIndex).trim();
+        if (key !== name) {
+            continue;
+        }
+
+        const value = part.slice(separatorIndex + 1).trim();
+        return value ? decodeURIComponent(value) : null;
+    }
+
+    return null;
+}
+
+function extractBearerToken(authHeader: string | string[] | undefined): string | null {
+    const headerValue = Array.isArray(authHeader) ? authHeader[0] : authHeader;
+    if (!headerValue) {
+        return null;
+    }
+
+    const match = headerValue.match(/^Bearer\s+(.+)$/i);
+    return match?.[1]?.trim() || null;
+}
+
 export function verifyToken(req: AuthRequest, res: Response, next: NextFunction): void {
-    const authHeader = req.headers["authorization"];
-    const token = authHeader && authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    const token = extractBearerToken(req.headers.authorization) || readCookie(req, "token");
 
     if (!token) {
         res.status(401).json({ error: "Authentication required. No token provided." });
@@ -53,9 +87,18 @@ export async function verifyEmployeeRole(req: AuthRequest, res: Response, next: 
             return;
         }
 
-        const employee = await getDataSource().getRepository(Employee).findOne({
-            where: { userId: req.user.id, isActive: true }
-        });
+        const employee = await getDataSource()
+            .getRepository(Employee)
+            .createQueryBuilder("employee")
+            .select([
+                "employee.id",
+                "employee.userId",
+                "employee.employeeId",
+                "employee.isActive",
+            ])
+            .where("employee.userId = :userId", { userId: req.user.id })
+            .andWhere("employee.isActive = :isActive", { isActive: true })
+            .getOne();
 
         if (!employee) {
             res.status(403).json({ error: "Employee profile not found or inactive" });

@@ -31,7 +31,7 @@ interface AdminLoan {
   createdAt?: string;
 }
 
-const MotionCard = motion(Card);
+const MotionCard = motion.create(Card);
 
 const AdminLoansPage: React.FC = () => {
   const [loans, setLoans] = useState<AdminLoan[]>([]);
