@@ -154,30 +154,45 @@ export default function CustomerDashboard() {
   const selectedAccount = accounts.find(acc => acc.id === Number(selectedAccountId));
 
   const fetchData = useCallback(async () => {
+    if (!user) return;
+
     try {
       setLoading(true);
-      if (user) {
+      let userAccounts: Account[] = [];
+
+      try {
         const res = await api.get<ApiResponse<Account[]>>(`/accounts/my-accounts`);
-        const userAccounts = res.data.data || [];
-        setAccounts(userAccounts);
-        if (userAccounts.length > 0 && !selectedAccountId) {
-          setSelectedAccountId(userAccounts[0].id);
-        }
-
-        const txRes = await api.get<ApiResponse<Transaction[]>>(`/transactions/my-transactions?limit=200`);
-        const allTx = (txRes.data.data || []).sort(
-          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-        setRecentTransactions(allTx.slice(0, 10));
-
-        const weeklyTrend = computeWeeklyTrend(allTx);
-        setTrendData(weeklyTrend);
-
-        const spending = computeSpendingCategories(allTx.slice(0, 100));
-        setSpendingData(spending);
+        userAccounts = res.data.data || [];
+      } catch {
+        // Fallback to user-scoped endpoint when my-accounts fails unexpectedly.
+        const fallback = await api.get<ApiResponse<Account[]>>(`/accounts/user/${user.id}`);
+        userAccounts = fallback.data.data || [];
       }
+
+      setAccounts(userAccounts);
+      if (userAccounts.length > 0 && !selectedAccountId) {
+        setSelectedAccountId(userAccounts[0].id);
+      }
+
+      let allTx: Transaction[] = [];
+      try {
+        const txRes = await api.get<ApiResponse<Transaction[]>>(`/transactions/my-transactions?limit=200`);
+        allTx = txRes.data.data || [];
+      } catch {
+        const fallbackTx = await api.get<ApiResponse<Transaction[]>>(`/transactions/user/${user.id}?limit=200`);
+        allTx = fallbackTx.data.data || [];
+      }
+
+      const sortedTx = allTx.sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      setRecentTransactions(sortedTx.slice(0, 10));
+      setTrendData(computeWeeklyTrend(sortedTx));
+      setSpendingData(computeSpendingCategories(sortedTx.slice(0, 100)));
     } catch (err) {
       console.error(err);
+      const message = (err as any)?.response?.data?.error || "Failed to fetch customer data from database";
+      showSnack(message, 'error');
     } finally {
       setLoading(false);
     }
@@ -392,9 +407,14 @@ export default function CustomerDashboard() {
 
       {/* 🎯 NEW: Quick Transaction Actions */}
       <Box sx={{ mb: 6 }}>
-        <Typography variant="h5" sx={{ mb: 3, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <AccountBalanceIcon sx={{ fontSize: 32, color: 'primary.main' }} /> Quick Actions
-        </Typography>
+        <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+          <Typography variant="h5" sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <AccountBalanceIcon sx={{ fontSize: 32, color: 'primary.main' }} /> Quick Actions
+          </Typography>
+          <Button variant="outlined" onClick={() => navigate('/customer/kyc')}>
+            Submit KYC Documents
+          </Button>
+        </Box>
         <Grid container spacing={3}>
           {[
             { mode: "deposit" as QuickMode, label: "Quick Deposit", icon: ArrowDownwardIcon, color: "#10b981", gradient: "linear-gradient(135deg, #10b981 0%, #059669 100%)" },

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { UserRole, Notification } from '../types';
 import notificationService from '../services/notificationService';
 import { useAuth } from './AuthContext';
@@ -18,6 +18,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const inFlightRef = useRef(false);
 
   const role = user?.role as UserRole | undefined;
   const userId = user?.id;
@@ -28,6 +29,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, [role, userId]);
 
   const loadNotifications = useCallback(async () => {
+    if (inFlightRef.current) {
+      return;
+    }
+
     if (!user || !role) {
       setNotifications([]);
       setLoading(false);
@@ -41,6 +46,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
 
     setLoading(true);
+    inFlightRef.current = true;
     try {
       let fetched: Notification[];
       switch (role) {
@@ -72,6 +78,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Failed to load notifications:', error);
     } finally {
+      inFlightRef.current = false;
       setLoading(false);
     }
   }, [role, userId, getStorageKey]);
@@ -117,12 +124,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
   }, [loadNotifications, role, user]);
 
-  // Poll every 30 seconds
+  // Poll less aggressively to avoid unnecessary API pressure
   useEffect(() => {
     if (!loading && notifications.length > 0) {
       const interval = setInterval(() => {
         loadNotifications();
-      }, 30000);
+      }, 120000);
 
       return () => clearInterval(interval);
     }

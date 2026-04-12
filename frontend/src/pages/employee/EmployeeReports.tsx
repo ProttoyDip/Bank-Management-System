@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  Alert,
   Box,
   Card,
   CardContent,
@@ -12,11 +13,17 @@ import { EmployeeReportsResponse } from "../../types";
 
 export default function EmployeeReports() {
   const [reports, setReports] = useState<EmployeeReportsResponse | null>(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const load = async () => {
-      const data = await employeeService.getReports();
-      setReports(data);
+      try {
+        const data = await employeeService.getReports();
+        setReports(data);
+        setError("");
+      } catch {
+        setError("Unable to load reports right now. Please try again shortly.");
+      }
     };
     load();
   }, []);
@@ -35,16 +42,17 @@ export default function EmployeeReports() {
 
   return (
     <Box>
+      {error && <Alert severity="warning" sx={{ mb: 2 }}>{error}</Alert>}
       <Grid2 container spacing={2}>
-        <Grid2 size={{ xs: 12, lg: 6 }}>
+        <Grid2 size={{ xs: 12, lg: 6 }} sx={{ minWidth: 0 }}>
           <Card sx={{ border: "1px solid", borderColor: "divider" }}>
             <CardContent>
               <Typography variant="h6" mb={2}>Daily Transactions Report</Typography>
               <Typography variant="body2" color="text.secondary" mb={1}>
                 Date: {reports?.dailyReport.date || "-"} | Total: {reports?.dailyReport.totalCount || 0}
               </Typography>
-              <Box sx={{ width: "100%", height: 300 }}>
-                <ResponsiveContainer>
+              <Box sx={{ width: "100%", minWidth: 0, height: 300 }}>
+                <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={dailyByType}>
                     <XAxis dataKey="type" />
                     <YAxis />
@@ -56,12 +64,12 @@ export default function EmployeeReports() {
             </CardContent>
           </Card>
         </Grid2>
-        <Grid2 size={{ xs: 12, lg: 6 }}>
+        <Grid2 size={{ xs: 12, lg: 6 }} sx={{ minWidth: 0 }}>
           <Card sx={{ border: "1px solid", borderColor: "divider" }}>
             <CardContent>
               <Typography variant="h6" mb={2}>Monthly Summary ({reports?.monthlySummary.month || "-"})</Typography>
-              <Box sx={{ width: "100%", height: 300 }}>
-                <ResponsiveContainer>
+              <Box sx={{ width: "100%", minWidth: 0, height: 300 }}>
+                <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={reports?.trendLast7Days || []}>
                     <XAxis dataKey="date" />
                     <YAxis />
@@ -75,12 +83,12 @@ export default function EmployeeReports() {
             </CardContent>
           </Card>
         </Grid2>
-        <Grid2 size={12}>
+        <Grid2 size={12} sx={{ minWidth: 0 }}>
           <Card sx={{ border: "1px solid", borderColor: "divider" }}>
             <CardContent>
               <Typography variant="h6" mb={2}>Loan Statistics</Typography>
-              <Box sx={{ width: "100%", height: 280 }}>
-                <ResponsiveContainer>
+              <Box sx={{ width: "100%", minWidth: 0, height: 280 }}>
+                <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={loanStats}>
                     <XAxis dataKey="status" />
                     <YAxis />

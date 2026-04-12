@@ -26,16 +26,23 @@ import api from '../../services/api';
 interface AdminTransaction {
   id: string | number;
   reference?: string;
+  referenceNumber?: string;
   type?: string;
   amount?: number;
   status?: string;
   flagged?: boolean;
+  isFlagged?: boolean;
   createdAt?: string;
   accountNumber?: string;
+  accountId?: string | number;
+  account?: {
+    id?: string | number;
+    accountNumber?: string;
+  };
   description?: string;
 }
 
-const MotionCard = motion(Card);
+const MotionCard = motion.create(Card);
 
 const AdminTransactionsPage: React.FC = () => {
   const [transactions, setTransactions] = useState<AdminTransaction[]>([]);
@@ -56,8 +63,15 @@ const AdminTransactionsPage: React.FC = () => {
       ]);
       const txData = transactionsResponse.data.data || transactionsResponse.data;
       const fraudData = fraudResponse.data.data || fraudResponse.data;
-      setTransactions(Array.isArray(txData) ? txData : []);
-      setFraudAlerts(Array.isArray(fraudData) ? fraudData : []);
+      const normalizeTransaction = (tx: AdminTransaction): AdminTransaction => ({
+        ...tx,
+        reference: tx.reference || tx.referenceNumber,
+        accountNumber: tx.accountNumber || tx.account?.accountNumber,
+        accountId: tx.accountId || tx.account?.id,
+        flagged: typeof tx.flagged === 'boolean' ? tx.flagged : Boolean(tx.isFlagged),
+      });
+      setTransactions(Array.isArray(txData) ? txData.map(normalizeTransaction) : []);
+      setFraudAlerts(Array.isArray(fraudData) ? fraudData.map(normalizeTransaction) : []);
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Failed to load transactions.');
     } finally {
@@ -159,8 +173,8 @@ const AdminTransactionsPage: React.FC = () => {
                   >
                     <MenuItem value="ALL">All</MenuItem>
                     <MenuItem value="PENDING">Pending</MenuItem>
-                    <MenuItem value="COMPLETED">Completed</MenuItem>
-                    <MenuItem value="FAILED">Failed</MenuItem>
+                    <MenuItem value="APPROVED">Approved</MenuItem>
+                    <MenuItem value="SUSPICIOUS">Suspicious</MenuItem>
                     <MenuItem value="REVERSED">Reversed</MenuItem>
                   </TextField>
                 </Grid>
@@ -193,14 +207,14 @@ const AdminTransactionsPage: React.FC = () => {
                             <TableCell>{transaction.reference || '—'}</TableCell>
                             <TableCell>{transaction.accountNumber || '—'}</TableCell>
                             <TableCell>{transaction.type || '—'}</TableCell>
-                            <TableCell>
+                            <TableCell sx={{ color: (transaction.amount || 0) >= 0 ? 'success.main' : 'error.main', fontWeight: 600 }}>
                               {typeof transaction.amount === 'number' ? transaction.amount.toLocaleString() : '—'}
                             </TableCell>
                             <TableCell>
                               <Chip
                                 size="small"
                                 label={normalizedStatus}
-                                color={normalizedStatus === 'COMPLETED' ? 'success' : normalizedStatus === 'FAILED' ? 'error' : 'default'}
+                                color={normalizedStatus === 'APPROVED' ? 'success' : normalizedStatus === 'SUSPICIOUS' ? 'warning' : 'default'}
                               />
                             </TableCell>
                             <TableCell>

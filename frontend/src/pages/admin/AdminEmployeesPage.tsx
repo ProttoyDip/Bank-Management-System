@@ -54,17 +54,26 @@ interface AdminEmployee {
   isActive?: boolean;
   status?: string;
   createdAt?: string;
+  user?: {
+    firstName?: string;
+    lastName?: string;
+    name?: string;
+    email?: string;
+  };
 }
 
 interface InviteFormState {
   email: string;
 }
 
-const MotionCard = motion(Card);
+const MotionCard = motion.create(Card);
 
 const getDisplayName = (employee: AdminEmployee) => {
   if (employee.name) return employee.name;
-  return [employee.firstName, employee.lastName].filter(Boolean).join(' ') || 'N/A';
+  if (employee.user?.name) return employee.user.name;
+  return [employee.firstName, employee.lastName, employee.user?.firstName, employee.user?.lastName]
+    .filter(Boolean)
+    .join(' ') || 'N/A';
 };
 
 const AdminEmployeesPage: React.FC = () => {
@@ -94,7 +103,14 @@ const AdminEmployeesPage: React.FC = () => {
         api.get('/admin/employees'),
         api.get('/admin/invites'),
       ]);
-      setEmployees(Array.isArray(employeesResponse.data) ? employeesResponse.data : employeesResponse.data?.data || []);
+      const employeesData = Array.isArray(employeesResponse.data) ? employeesResponse.data : employeesResponse.data?.data || [];
+      setEmployees(
+        employeesData.map((employee: AdminEmployee) => ({
+          ...employee,
+          name: employee.name || employee.user?.name,
+          email: employee.email || employee.user?.email || '—',
+        }))
+      );
       setInvites(Array.isArray(invitesResponse.data) ? invitesResponse.data : invitesResponse.data?.data || []);
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Failed to load employees data.');

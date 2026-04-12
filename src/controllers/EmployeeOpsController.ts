@@ -298,7 +298,7 @@ export class EmployeeOpsController {
             const tx = queryRunner.manager.create(Transaction, {
                 accountId: account.id,
                 type: TransactionType.WITHDRAW,
-                amount,
+                amount: -amount,
                 balanceAfter: nextBalance,
                 description: description || `Counter withdrawal for ${account.accountNumber}`,
                 referenceNumber: generateReferenceNumber(),
@@ -476,7 +476,7 @@ export class EmployeeOpsController {
             const outTx = queryRunner.manager.create(Transaction, {
                 accountId: fromAccount.id,
                 type: TransactionType.TRANSFER_OUT,
-                amount,
+                amount: -amount,
                 balanceAfter: fromAccount.balance,
                 description: description || `Transfer to ${toAccount.accountNumber}`,
                 referenceNumber: generateReferenceNumber(),
@@ -597,12 +597,28 @@ export class EmployeeOpsController {
 
     static async getKyc(req: Request, res: Response): Promise<Response> {
         try {
-            const status = String(req.query.status || "").trim() || KycStatus.PENDING;
-            const rows = await getDataSource().getRepository(KycRequest).find({
-                where: { status },
-                relations: ["user"],
-                order: { createdAt: "DESC" }
-            });
+            const status = String(req.query.status || "").trim();
+            const repo = getDataSource().getRepository(KycRequest);
+
+            let rows: KycRequest[];
+            if (!status || status.toLowerCase() === "all") {
+                rows = await repo.find({
+                    where: [
+                        { status: KycStatus.PENDING },
+                        { status: KycStatus.UNDER_REVIEW_ADMIN },
+                        { status: KycStatus.VERIFIED },
+                        { status: KycStatus.REJECTED },
+                    ],
+                    relations: ["user"],
+                    order: { createdAt: "DESC" }
+                });
+            } else {
+                rows = await repo.find({
+                    where: { status },
+                    relations: ["user"],
+                    order: { createdAt: "DESC" }
+                });
+            }
             return res.json({ data: rows });
         } catch (error) {
             console.error("Employee get KYC error:", error);
@@ -624,14 +640,18 @@ export class EmployeeOpsController {
                 return res.status(404).json({ error: "KYC request not found" });
             }
 
-            row.status = KycStatus.VERIFIED;
+            if (String(row.status).toLowerCase() !== KycStatus.PENDING.toLowerCase()) {
+                return res.status(400).json({ error: "Only pending KYC requests can be forwarded to admin" });
+            }
+
+            row.status = KycStatus.UNDER_REVIEW_ADMIN;
             row.remarks = remarks || row.remarks;
             row.verifiedByEmployeeId = req.user!.employeeId!;
             row.verifiedAt = new Date();
             const updated = await repo.save(row);
 
-            await logEmployeeActivity(req.user!.employeeId!, "Verified KYC", `KYC ${id}`);
-            return res.json({ message: "KYC verified", data: updated });
+            await logEmployeeActivity(req.user!.employeeId!, "Forwarded KYC To Admin Review", `KYC ${id}`);
+            return res.json({ message: "KYC forwarded to admin review", data: updated });
         } catch (error) {
             console.error("Verify KYC error:", error);
             return res.status(500).json({ error: "Internal server error" });

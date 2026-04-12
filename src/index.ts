@@ -2,6 +2,8 @@ import "reflect-metadata";
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
 import { initializeDataSource, AppDataSource, LocalDataSource } from "./data-source";
 import routes from "./routes";
 import { errorHandler } from "./middleware/errorHandler";
@@ -17,10 +19,26 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 
 app.use(helmet());
+const isDevelopment = process.env.NODE_ENV === "development";
+const rateLimitWindowMs = Number(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
+const rateLimitMax = Number(process.env.RATE_LIMIT_MAX || (isDevelopment ? 2000 : 100));
+
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per IP
-  message: 'Too many requests, please try again later.',
+    windowMs: rateLimitWindowMs,
+    max: rateLimitMax,
+    message: {
+        success: false,
+        message: "Too many requests, please try again later.",
+    },
+    handler: (_req, res) => {
+        const retryAfterSeconds = Math.ceil(rateLimitWindowMs / 1000);
+        res.setHeader("Retry-After", retryAfterSeconds.toString());
+        res.status(429).json({
+            success: false,
+            message: "Too many requests, please try again later.",
+            retryAfter: retryAfterSeconds,
+        });
+    },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -34,6 +52,20 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+const uploadCandidates = [
+    path.resolve(process.cwd(), "uploads"),
+    path.resolve(process.cwd(), "..", "uploads"),
+    path.resolve(__dirname, "..", "uploads"),
+    path.resolve(__dirname, "..", "..", "uploads"),
+];
+
+const uploadsRoot = uploadCandidates.find((candidate) => fs.existsSync(candidate)) || uploadCandidates[0];
+if (!fs.existsSync(uploadsRoot)) {
+    fs.mkdirSync(uploadsRoot, { recursive: true });
+}
+console.log(`📁 Serving uploads from ${uploadsRoot}`);
+app.use("/uploads", express.static(uploadsRoot));
 
 
 // ── Routes ───────────────────────────────────────────────

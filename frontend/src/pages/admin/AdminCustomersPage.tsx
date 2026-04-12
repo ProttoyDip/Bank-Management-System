@@ -39,7 +39,7 @@ interface AdminCustomer {
   createdAt?: string;
 }
 
-const MotionCard = motion(Card);
+const MotionCard = motion.create(Card);
 
 const getCustomerName = (customer: AdminCustomer) => {
   if (customer.name) return customer.name;

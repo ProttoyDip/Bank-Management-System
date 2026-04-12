@@ -26,6 +26,7 @@ import EmployeeList from "./pages/employees/EmployeeList";
 import FinancialReports from "./pages/reports/FinancialReports";
 import Settings from "./pages/Settings";
 import CustomerAccounts from "./pages/customers/CustomerAccounts";
+import CustomerKyc from "./pages/customers/CustomerKyc";
 import AdminEmployeesPage from "./pages/admin/AdminEmployeesPage";
 import AdminCustomersPage from "./pages/admin/AdminCustomersPage";
 import AdminAccountsPage from "./pages/admin/AdminAccountsPage";
@@ -103,6 +104,7 @@ function ThemedApp() {
                     <Route path="transactions" element={<TransactionHistory />} />
                     <Route path="transfer" element={<Transfer />} />
                     <Route path="loans" element={<LoanList />} />
+                    <Route path="kyc" element={<CustomerKyc />} />
                     <Route path="settings" element={<Settings />} />
                   </Route>
                 </Route>

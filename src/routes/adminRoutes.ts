@@ -1,5 +1,7 @@
 import { Router, Response } from "express";
-import { FindOptionsWhere, ILike } from "typeorm";
+import fs from "fs";
+import path from "path";
+import { Between, FindOptionsWhere, ILike } from "typeorm";
 import { z } from "zod";
 import { verifyAdminRole, verifyToken, AuthRequest, requireSuperAdmin } from "../middleware/auth";
 import { getDataSource } from "../data-source";
@@ -111,6 +113,75 @@ function sendValidationError(res: Response, message: string) {
 function buildInviteUrl(token: string): string {
     const frontendBase = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
     return `${frontendBase}/accept-invite?token=${encodeURIComponent(token)}`;
+}
+
+function resolveUploadsRoot(): string {
+    const candidates = [
+        path.resolve(process.cwd(), "uploads"),
+        path.resolve(process.cwd(), "..", "uploads"),
+        path.resolve(__dirname, "..", "..", "uploads"),
+        path.resolve(__dirname, "..", "..", "..", "uploads"),
+    ];
+    return candidates.find((candidate) => fs.existsSync(candidate)) || candidates[0];
+}
+
+function extractKycFilePaths(documentRef: string | null): string[] {
+    if (!documentRef || typeof documentRef !== "string") return [];
+
+    const collected = new Set<string>();
+    const trimmed = documentRef.trim();
+
+    const collectFromValue = (value: unknown): void => {
+        if (typeof value === "string") {
+            const candidate = value.trim();
+            if (candidate.startsWith("/uploads/") || candidate.startsWith("uploads/") || candidate.startsWith("kyc/")) {
+                collected.add(candidate);
+            }
+            return;
+        }
+
+        if (Array.isArray(value)) {
+            value.forEach(collectFromValue);
+            return;
+        }
+
+        if (value && typeof value === "object") {
+            const record = value as Record<string, unknown>;
+            if (typeof record.filePath === "string") {
+                collectFromValue(record.filePath);
+            }
+            Object.values(record).forEach(collectFromValue);
+        }
+    };
+
+    try {
+        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+            collectFromValue(JSON.parse(trimmed));
+        } else {
+            collectFromValue(trimmed);
+        }
+    } catch {
+        collectFromValue(trimmed);
+    }
+
+    return Array.from(collected);
+}
+
+function resolveKycFilePath(originalPath: string, uploadsRoot: string): string {
+    const normalized = originalPath.replace(/\\/g, "/").trim();
+
+    if (/^[A-Za-z]:\//.test(normalized)) {
+        return path.normalize(normalized);
+    }
+
+    const withoutLeadingSlash = normalized.replace(/^\/+/, "");
+    let relativePath = withoutLeadingSlash;
+
+    if (relativePath.startsWith("uploads/")) {
+        relativePath = relativePath.slice("uploads/".length);
+    }
+
+    return path.resolve(uploadsRoot, relativePath);
 }
 
 router.get("/session", (req, res) => {
@@ -539,27 +610,80 @@ router.patch("/transactions/:id/flag", async (req, res) => {
 
     try {
         const transactionRepository = getDataSource().getRepository(Transaction);
-        const transaction = await transactionRepository.findOne({ where: { id: Number(req.params.id) } });
+        const transaction = await transactionRepository.findOne({
+            where: { id: Number(req.params.id) },
+            relations: { account: true },
+        });
 
         if (!transaction) {
             return res.status(404).json({ success: false, message: "Transaction not found" });
         }
 
-        transaction.isFlagged = Boolean(flagged);
-        transaction.flagReason = flagged ? (reason || "Manually flagged by admin") : null;
-        transaction.status = flagged ? TransactionStatus.SUSPICIOUS : TransactionStatus.APPROVED;
-        transaction.reviewedByEmployeeId = getAdminActorId(req);
-        transaction.reviewedAt = new Date();
+        const actorId = getAdminActorId(req);
+        const nextFlagged = Boolean(flagged);
+        const nextStatus = nextFlagged ? TransactionStatus.SUSPICIOUS : TransactionStatus.APPROVED;
+        const reviewTime = new Date();
 
-        const updated = await transactionRepository.save(transaction);
+        const updateTransactionFlag = (tx: Transaction) => {
+            tx.isFlagged = nextFlagged;
+            tx.flagReason = nextFlagged ? (reason || "Manually flagged by admin") : null;
+            tx.status = nextStatus;
+            tx.reviewedByEmployeeId = actorId;
+            tx.reviewedAt = reviewTime;
+            return tx;
+        };
+
+        const transactionsToUpdate: Transaction[] = [updateTransactionFlag(transaction)];
+
+        if (transaction.type === TransactionType.TRANSFER_IN || transaction.type === TransactionType.TRANSFER_OUT) {
+            const counterpartType = transaction.type === TransactionType.TRANSFER_IN
+                ? TransactionType.TRANSFER_OUT
+                : TransactionType.TRANSFER_IN;
+            const sourceTime = new Date(transaction.createdAt).getTime();
+            const twoMinutesMs = 2 * 60 * 1000;
+            const startWindow = new Date(sourceTime - twoMinutesMs);
+            const endWindow = new Date(sourceTime + twoMinutesMs);
+
+            const candidates = await transactionRepository.find({
+                where: {
+                    type: counterpartType,
+                    createdAt: Between(startWindow, endWindow),
+                },
+                relations: { account: true },
+            });
+
+            const counterpart = candidates
+                .filter((candidate) => {
+                    if (candidate.id === transaction.id) return false;
+                    const createdAt = new Date(candidate.createdAt).getTime();
+                    if (createdAt < startWindow.getTime() || createdAt > endWindow.getTime()) return false;
+                    return Math.abs(Number(candidate.amount)) === Math.abs(Number(transaction.amount));
+                })
+                .sort((a, b) => {
+                    const aDiff = Math.abs(new Date(a.createdAt).getTime() - sourceTime);
+                    const bDiff = Math.abs(new Date(b.createdAt).getTime() - sourceTime);
+                    return aDiff - bDiff;
+                })[0];
+
+            if (counterpart) {
+                transactionsToUpdate.push(updateTransactionFlag(counterpart));
+            }
+        }
+
+        const updated = await transactionRepository.save(transactionsToUpdate);
 
         await logAdminAction(
             req,
             "FLAG_TRANSACTION",
-            `Transaction ${transaction.id} flagged=${transaction.isFlagged}`
+            `Transaction ${transaction.id} flagged=${nextFlagged}; updated=${updated.map((tx) => tx.id).join(",")}`
         );
 
-        res.json({ success: true, data: updated, message: "Transaction flag updated successfully" });
+        res.json({
+            success: true,
+            data: updated,
+            updatedTransactionIds: updated.map((tx) => tx.id),
+            message: "Transaction flag updated successfully",
+        });
     } catch (error) {
         console.error("Flag transaction error:", error);
         res.status(500).json({ success: false, message: "Failed to update transaction flag" });
@@ -830,6 +954,72 @@ router.get("/kyc", async (_req, res) => {
     }
 });
 
+router.get("/kyc/file-path-audit", async (req, res) => {
+    try {
+        const kycRepository = getDataSource().getRepository(KycRequest);
+        const requests = await kycRepository.find({
+            relations: { user: true },
+            order: { createdAt: "DESC" },
+        });
+
+        const uploadsRoot = resolveUploadsRoot();
+        let checkedFiles = 0;
+        let requestsWithFilePaths = 0;
+        const missing: Array<{
+            kycId: number;
+            userId: number;
+            userEmail: string | null;
+            status: string;
+            createdAt: Date;
+            originalPath: string;
+            resolvedPath: string;
+        }> = [];
+
+        for (const requestRow of requests) {
+            const paths = extractKycFilePaths(requestRow.documentRef);
+            if (paths.length === 0) continue;
+
+            requestsWithFilePaths += 1;
+            for (const originalPath of paths) {
+                const resolvedPath = resolveKycFilePath(originalPath, uploadsRoot);
+                checkedFiles += 1;
+                if (!fs.existsSync(resolvedPath)) {
+                    missing.push({
+                        kycId: requestRow.id,
+                        userId: requestRow.userId,
+                        userEmail: requestRow.user?.email || null,
+                        status: requestRow.status,
+                        createdAt: requestRow.createdAt,
+                        originalPath,
+                        resolvedPath,
+                    });
+                }
+            }
+        }
+
+        await logAdminAction(
+            req as AuthRequest,
+            "AUDIT_KYC_FILE_PATHS",
+            `Checked ${checkedFiles} file paths; missing ${missing.length}`
+        );
+
+        return res.json({
+            success: true,
+            data: {
+                uploadsRoot,
+                totalRequests: requests.length,
+                requestsWithFilePaths,
+                checkedFiles,
+                missingFiles: missing.length,
+                missing,
+            },
+        });
+    } catch (error) {
+        console.error("KYC file-path audit error:", error);
+        return res.status(500).json({ success: false, message: "Failed to audit KYC file paths" });
+    }
+});
+
 router.put("/kyc/:id/verify", async (req, res) => {
     const parsed = kycVerifySchema.safeParse(req.body);
 
@@ -843,6 +1033,12 @@ router.put("/kyc/:id/verify", async (req, res) => {
 
         if (!request) {
             return res.status(404).json({ error: "KYC request not found" });
+        }
+
+        if (String(request.status).toLowerCase() !== KycStatus.UNDER_REVIEW_ADMIN.toLowerCase()) {
+            return res.status(400).json({
+                error: "KYC must be verified by employee and forwarded to admin before final decision"
+            });
         }
 
         request.status = parsed.data.status === "Verified" ? KycStatus.VERIFIED : KycStatus.REJECTED;

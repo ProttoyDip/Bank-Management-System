@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { Box, AppBar, Toolbar, IconButton, Drawer, useMediaQuery, useTheme, Typography, InputBase, Badge, Avatar, Menu, MenuItem, Divider } from "@mui/material";
+import { Box, AppBar, Toolbar, IconButton, Drawer, useMediaQuery, useTheme, Typography, InputBase, Badge, Avatar, Menu, MenuItem, Divider, Tooltip } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import SearchIcon from "@mui/icons-material/Search";
 import NotificationsIcon from "@mui/icons-material/Notifications";
+import Brightness4Icon from "@mui/icons-material/Brightness4";
+import Brightness7Icon from "@mui/icons-material/Brightness7";
 import AdminSidebar from "./AdminSidebar";
 import { useAuth } from "../../context/AuthContext";
 import { useNotification } from "../../context/NotificationContext";
 import { Notification } from "../../types";
+import { useThemeContext } from "../../context/ThemeContext";
 
 const DRAWER_WIDTH = 260;
 
@@ -20,6 +23,7 @@ export default function AdminLayout() {
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const { user, logout } = useAuth();
   const { unreadCount, notifications, markAllAsRead } = useNotification();
+  const { isDarkMode, toggleDarkMode } = useThemeContext();
 
   const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -163,6 +167,11 @@ export default function AdminLayout() {
               />
             </Box>
             <Box sx={{ flexGrow: 1 }} />
+            <Tooltip title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"} arrow>
+              <IconButton onClick={toggleDarkMode}>
+                {isDarkMode ? <Brightness7Icon sx={{ color: "text.secondary" }} /> : <Brightness4Icon sx={{ color: "text.secondary" }} />}
+              </IconButton>
+            </Tooltip>
             {/* Notifications */}
             <IconButton onClick={handleNotifMenuOpen}>
               <Badge badgeContent={unreadCount} color="error">

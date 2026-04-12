@@ -26,12 +26,20 @@ interface AdminLoan {
   amount?: number;
   status?: string;
   customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
   type?: string;
   termMonths?: number;
+  duration?: number;
   createdAt?: string;
+  user?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+  };
 }
 
-const MotionCard = motion(Card);
+const MotionCard = motion.create(Card);
 
 const AdminLoansPage: React.FC = () => {
   const [loans, setLoans] = useState<AdminLoan[]>([]);
@@ -46,7 +54,16 @@ const AdminLoansPage: React.FC = () => {
       setError('');
       const response = await api.get('/admin/loans');
       const loansData = response.data.data || response.data;
-      setLoans(Array.isArray(loansData) ? loansData : []);
+      const normalized = Array.isArray(loansData)
+        ? loansData.map((loan: AdminLoan) => ({
+            ...loan,
+            customerName: loan.customerName || loan.user?.name || '—',
+            customerEmail: loan.customerEmail || loan.user?.email || '—',
+            customerPhone: loan.customerPhone || loan.user?.phone || '—',
+            termMonths: loan.termMonths || loan.duration,
+          }))
+        : [];
+      setLoans(normalized);
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Failed to load loans.');
     } finally {
@@ -167,7 +184,10 @@ const AdminLoansPage: React.FC = () => {
                     const normalizedStatus = (loan.status || 'UNKNOWN').toUpperCase();
                     return (
                       <TableRow key={loan.id} hover>
-                        <TableCell>{loan.customerName || '—'}</TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={600}>{loan.customerName || '—'}</Typography>
+                          <Typography variant="caption" color="text.secondary">{loan.customerEmail || '—'}</Typography>
+                        </TableCell>
                         <TableCell>{loan.type || '—'}</TableCell>
                         <TableCell>{typeof loan.amount === 'number' ? loan.amount.toLocaleString() : '—'}</TableCell>
                         <TableCell>{loan.termMonths ? `${loan.termMonths} months` : '—'}</TableCell>

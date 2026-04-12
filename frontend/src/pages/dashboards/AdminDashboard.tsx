@@ -72,7 +72,7 @@ interface MonthlyTrend {
   withdrawals: number;
 }
 
-const MotionCard = motion(Card);
+const MotionCard = motion.create(Card);
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("en-US", {
