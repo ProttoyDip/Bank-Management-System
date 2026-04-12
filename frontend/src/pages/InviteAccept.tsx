@@ -81,7 +81,7 @@ const InviteAccept: React.FC = () => {
     try {
       setSubmitting(true);
       setError("");
-      await api.post("/auth/invite/accept", {
+      await api.post("/auth/invite/complete", {
         token,
         name: name.trim(),
         password,

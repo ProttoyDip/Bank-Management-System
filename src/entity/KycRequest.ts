@@ -11,8 +11,8 @@ import { User } from "./User";
 
 export enum KycStatus {
     PENDING = "Pending",
-    UNDER_REVIEW_ADMIN = "Under Review (Admin)",
-    VERIFIED = "Verified",
+    EMPLOYEE_APPROVED = "Employee Approved",
+    ADMIN_VERIFIED = "Admin Verified",
     REJECTED = "Rejected",
 }
 
@@ -30,10 +30,10 @@ export class KycRequest {
     @Column({ type: "nvarchar", length: 255, nullable: true })
     documentType!: string | null;
 
-    @Column({ type: "nvarchar", length: 500, nullable: true })
+    @Column({ type: "nvarchar", length: "MAX", nullable: true })
     documentRef!: string | null;
 
-    @Column({ type: "nvarchar", length: 500, nullable: true })
+    @Column({ type: "nvarchar", length: "MAX", nullable: true })
     remarks!: string | null;
 
     @Column({ type: "int", nullable: true })

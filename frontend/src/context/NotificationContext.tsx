@@ -1,9 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
+import React, { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { UserRole, Notification } from '../types';
-import notificationService from '../services/notificationService';
+import notificationService, { connectNotificationStream } from '../services/notificationService';
 import { useAuth } from './AuthContext';
 
-interface NotificationContextType {
+export interface NotificationContextType {
   notifications: Notification[];
   unreadCount: number;
   loading: boolean;
@@ -12,7 +12,7 @@ interface NotificationContextType {
   markAllAsRead: () => void;
 }
 
-const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
+export const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -21,13 +21,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const inFlightRef = useRef(false);
 
   const role = user?.role as UserRole | undefined;
-  const userId = user?.id;
-
-  const getStorageKey = useCallback(() => {
-    const roleKey = role?.toLowerCase() || 'guest';
-    return `notifications_${roleKey}${userId ? `_${userId}` : ''}`;
-  }, [role, userId]);
-
   const loadNotifications = useCallback(async () => {
     if (inFlightRef.current) {
       return;
@@ -39,82 +32,52 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (role === 'Customer' && !userId) {
-      setNotifications([]);
-      setLoading(false);
-      return;
-    }
-
     setLoading(true);
     inFlightRef.current = true;
     try {
-      let fetched: Notification[];
-      switch (role) {
-        case 'Customer':
-          fetched = await notificationService.getCustomerNotifications(userId!);
-          break;
-        case 'Admin':
-          fetched = await notificationService.getAdminNotifications();
-          break;
-        case 'Employee':
-          fetched = await notificationService.getEmployeeNotifications();
-          break;
-        default:
-          fetched = [];
-      }
-
-      // Merge with localStorage (preserve read status)
-      const storageKey = getStorageKey();
-      const stored = localStorage.getItem(storageKey);
-      const storedMap = stored ? JSON.parse(stored) as Record<number, boolean> : {};
-
-      const merged = fetched.map(notif => ({
-        ...notif,
-        isRead: storedMap[notif.id] || notif.isRead
-      }));
-
-      setNotifications(merged);
-      localStorage.setItem(storageKey, JSON.stringify(storedMap));
+      const fetched = await notificationService.getNotifications();
+      setNotifications(fetched);
     } catch (error) {
       console.error('Failed to load notifications:', error);
     } finally {
       inFlightRef.current = false;
       setLoading(false);
     }
-  }, [role, userId, getStorageKey]);
+  }, [role, user]);
 
   const markAsRead = useCallback((id: number) => {
     setNotifications(prev => {
-      const updated = prev.map(notif => 
-        notif.id === id ? { ...notif, isRead: true } : notif
-      );
-      // Update storage
-      const storageKey = getStorageKey();
-      const stored = localStorage.getItem(storageKey);
-      const storedMap = stored ? JSON.parse(stored) as Record<number, boolean> : {};
-      storedMap[id] = true;
-      localStorage.setItem(storageKey, JSON.stringify(storedMap));
-      return updated;
+      const hasTarget = prev.some((item) => item.id === id && !item.isRead);
+      if (!hasTarget) {
+        return prev;
+      }
+      notificationService.markAsRead(id).catch((error) => {
+        console.error('Failed to mark notification as read:', error);
+      });
+      return prev.map(notif => (notif.id === id ? { ...notif, isRead: true } : notif));
     });
-  }, [getStorageKey]);
+  }, []);
 
   const markAllAsRead = useCallback(() => {
     setNotifications(prev => {
-      const unreadIds = prev.filter(n => !n.isRead).map(n => n.id);
+      const unreadIds = prev.filter(n => !n.isRead).map(n => Number(n.id));
       if (unreadIds.length === 0) return prev;
-
-      // Update storage
-      const storageKey = getStorageKey();
-      const stored = localStorage.getItem(storageKey);
-      const storedMap = stored ? JSON.parse(stored) as Record<number, boolean> : {};
-      unreadIds.forEach(id => storedMap[id] = true);
-      localStorage.setItem(storageKey, JSON.stringify(storedMap));
-
+      Promise.all(unreadIds.map((id) => notificationService.markAsRead(id))).catch((error) => {
+        console.error('Failed to mark all notifications as read:', error);
+      });
       return prev.map(notif => ({ ...notif, isRead: true }));
     });
-  }, [getStorageKey]);
+  }, []);
 
-  // Initial load and polling
+  const upsertNotification = useCallback((notification: Notification) => {
+    setNotifications((prev) => {
+      if (prev.some((item) => String(item.id) === String(notification.id))) {
+        return prev;
+      }
+      return [notification, ...prev].slice(0, 50);
+    });
+  }, []);
+
   useEffect(() => {
     if (user && role) {
       loadNotifications();
@@ -124,18 +87,31 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
   }, [loadNotifications, role, user]);
 
-  // Poll less aggressively to avoid unnecessary API pressure
   useEffect(() => {
-    if (!loading && notifications.length > 0) {
-      const interval = setInterval(() => {
-        loadNotifications();
-      }, 120000);
-
-      return () => clearInterval(interval);
+    if (!user || !role) {
+      return;
     }
-  }, [loadNotifications, loading, notifications.length]);
 
-  const value: NotificationContextType = {
+    const interval = setInterval(() => {
+      loadNotifications();
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [loadNotifications, role, user]);
+
+  useEffect(() => {
+    if (!user || !role) {
+      return;
+    }
+
+    const disconnect = connectNotificationStream((notification) => {
+      upsertNotification(notification);
+    });
+
+    return disconnect;
+  }, [role, upsertNotification, user]);
+
+  const value = {
     notifications,
     unreadCount: notifications.filter(n => !n.isRead).length,
     loading,
@@ -150,12 +126,3 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     </NotificationContext.Provider>
   );
 }
-
-export function useNotification() {
-  const context = useContext(NotificationContext);
-  if (context === undefined) {
-    throw new Error('useNotification must be used within a NotificationProvider');
-  }
-  return context;
-}
-

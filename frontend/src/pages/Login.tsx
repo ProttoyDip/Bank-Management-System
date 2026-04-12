@@ -122,6 +122,10 @@ export default function Login() {
       console.log("🔍 [LOGIN] Calling authService.login...");
       const response = await authService.login({ email, password });
       console.log("✅ [LOGIN] Success:", response.user.role);
+
+      if (!response.token) {
+        throw new Error("Login succeeded but the API did not return a token");
+      }
       
       // Use the JWT token and user data from the response
       // Convert the role string from server to UserRole enum
@@ -1223,4 +1227,3 @@ export default function Login() {
     </Box>
   );
 }
-

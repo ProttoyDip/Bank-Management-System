@@ -117,8 +117,8 @@ export default function EmployeeKyc() {
           <TextField select label="Status" value={status} onChange={(e) => setStatus(e.target.value)} sx={{ minWidth: 240 }}>
             <MenuItem value="All">All</MenuItem>
             <MenuItem value="Pending">Pending</MenuItem>
-            <MenuItem value="Under Review (Admin)">Under Review (Admin)</MenuItem>
-            <MenuItem value="Verified">Verified</MenuItem>
+            <MenuItem value="Employee Approved">Employee Approved</MenuItem>
+            <MenuItem value="Admin Verified">Admin Verified</MenuItem>
             <MenuItem value="Rejected">Rejected</MenuItem>
           </TextField>
           {error && (
@@ -183,9 +183,9 @@ export default function EmployeeKyc() {
                       size="small"
                       variant="contained"
                       onClick={() => verify(row.id)}
-                      disabled={String(row.status).toLowerCase() !== "pending"}
+                      disabled={row.status !== "Pending"}
                     >
-                      Forward to Admin
+                      Employee Approve
                     </Button>
                   </TableCell>
                 </TableRow>

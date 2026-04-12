@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "start": "node dist/index.js",
-    "dev": "nodemon",
+    "dev": "ts-node src/index.ts",
     "build": "tsc",
     "typeorm": "typeorm-ts-node-commonjs",
     "verify:transactions": "node scripts/verify-transactions.js"
@@ -34,7 +34,6 @@
     "framer-motion": "^12.38.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
-    "msnodesqlv8": "^5.1.5",
     "mssql": "^12.2.0",
     "multer": "^2.1.1",
     "nodemailer": "^8.0.4",

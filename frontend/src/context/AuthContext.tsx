@@ -59,6 +59,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = (userData: User, newToken: string) => {
+    if (!newToken || !newToken.trim()) {
+      throw new Error("Login response did not include a token");
+    }
+
     setUser(userData);
     setToken(newToken);
     localStorage.setItem("user", JSON.stringify(userData));
@@ -95,4 +99,3 @@ export function useAuth() {
   }
   return context;
 }
-

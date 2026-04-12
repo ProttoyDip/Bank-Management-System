@@ -49,131 +49,7 @@ interface AdminKycRequest {
   };
 }
 
-interface ParsedKycDocument {
-  id: string;
-  type: string;
-  filePath: string;
-  fileName: string;
-}
-
 const MotionCard = motion.create(Card);
-
-const normalizeKycStatus = (status?: string): 'PENDING' | 'UNDER_REVIEW_ADMIN' | 'VERIFIED' | 'REJECTED' | 'UNKNOWN' => {
-  const normalized = String(status || '').trim().toUpperCase();
-  if (normalized === 'PENDING' || normalized === 'ADMIN PENDING') return 'PENDING';
-  if (normalized === 'UNDER REVIEW (ADMIN)' || normalized === 'UNDER_REVIEW_ADMIN') return 'UNDER_REVIEW_ADMIN';
-  if (normalized === 'VERIFIED' || normalized === 'ADMIN VERIFIED') return 'VERIFIED';
-  if (normalized === 'REJECTED' || normalized === 'ADMIN REJECTED') return 'REJECTED';
-  return 'UNKNOWN';
-};
-
-const summarizeDocumentRef = (documentRef: unknown): { summary: string; details: string; searchText: string } => {
-  if (documentRef === null || documentRef === undefined) {
-    return { summary: '—', details: '', searchText: '' };
-  }
-
-  const raw = typeof documentRef === 'string' ? documentRef.trim() : JSON.stringify(documentRef);
-  if (!raw) {
-    return { summary: '—', details: '', searchText: '' };
-  }
-
-  let parsed: unknown = raw;
-  if (raw.startsWith('{') || raw.startsWith('[')) {
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      parsed = raw;
-    }
-  }
-
-  if (Array.isArray(parsed)) {
-    const docs = parsed.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object');
-    const docTypes = docs
-      .map((doc) => (typeof doc.type === 'string' ? doc.type : 'Document'))
-      .filter(Boolean);
-    return {
-      summary: `${docs.length} document${docs.length === 1 ? '' : 's'}`,
-      details: docTypes.slice(0, 2).join(' + '),
-      searchText: `${raw} ${docTypes.join(' ')}`.toLowerCase(),
-    };
-  }
-
-  if (parsed && typeof parsed === 'object') {
-    const data = parsed as Record<string, unknown>;
-    const docs = Array.isArray(data.documents)
-      ? data.documents.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
-      : [];
-    const docTypes = docs
-      .map((doc) => (typeof doc.type === 'string' ? doc.type : 'Document'))
-      .filter(Boolean);
-    const profile = data.profile && typeof data.profile === 'object' ? (data.profile as Record<string, unknown>) : null;
-    const riskLevel = profile && typeof profile.riskLevel === 'string' ? profile.riskLevel : null;
-    return {
-      summary: docs.length ? `${docs.length} document${docs.length === 1 ? '' : 's'}` : 'Structured KYC data',
-      details: [docTypes.slice(0, 2).join(' + '), riskLevel ? `Risk: ${riskLevel}` : ''].filter(Boolean).join(' • '),
-      searchText: `${raw} ${docTypes.join(' ')} ${riskLevel || ''}`.toLowerCase(),
-    };
-  }
-
-  const plain = String(parsed);
-  return {
-    summary: plain.length > 48 ? `${plain.slice(0, 48)}...` : plain,
-    details: '',
-    searchText: plain.toLowerCase(),
-  };
-};
-
-const parseKycDocuments = (documentRef: unknown): ParsedKycDocument[] => {
-  if (documentRef === null || documentRef === undefined) return [];
-
-  const raw = typeof documentRef === 'string' ? documentRef.trim() : JSON.stringify(documentRef);
-  if (!raw) return [];
-
-  let parsed: unknown = raw;
-  if (raw.startsWith('{') || raw.startsWith('[')) {
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      parsed = raw;
-    }
-  }
-
-  const normalizeDocument = (item: Record<string, unknown>, index: number): ParsedKycDocument | null => {
-    const filePath = typeof item.filePath === 'string' ? item.filePath : '';
-    if (!filePath) return null;
-    const type = typeof item.type === 'string' ? item.type : 'Document';
-    const fileName = typeof item.fileName === 'string'
-      ? item.fileName
-      : filePath.split('/').filter(Boolean).pop() || `document-${index + 1}`;
-    const id = typeof item.id === 'string' ? item.id : `${fileName}-${index}`;
-    return { id, type, filePath, fileName };
-  };
-
-  if (Array.isArray(parsed)) {
-    return parsed
-      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
-      .map(normalizeDocument)
-      .filter((doc): doc is ParsedKycDocument => Boolean(doc));
-  }
-
-  if (parsed && typeof parsed === 'object') {
-    const data = parsed as Record<string, unknown>;
-    if (Array.isArray(data.documents)) {
-      return data.documents
-        .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
-        .map(normalizeDocument)
-        .filter((doc): doc is ParsedKycDocument => Boolean(doc));
-    }
-  }
-
-  return [];
-};
-
-const buildDocumentUrl = (filePath: string): string => {
-  if (/^https?:\/\//i.test(filePath)) return filePath;
-  const normalized = filePath.startsWith('/') ? filePath : `/${filePath}`;
-  return `http://localhost:3000${normalized}`;
-};
 
 const AdminKycPage: React.FC = () => {
   const [kycRequests, setKycRequests] = useState<AdminKycRequest[]>([]);
@@ -185,7 +61,7 @@ const AdminKycPage: React.FC = () => {
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
   const [documentsDialogOpen, setDocumentsDialogOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<AdminKycRequest | null>(null);
-  const [verifyStatus, setVerifyStatus] = useState('Verified');
+  const [verifyStatus, setVerifyStatus] = useState('Admin Verified');
   const [verifyRemarks, setVerifyRemarks] = useState('');
   const [documentAvailability, setDocumentAvailability] = useState<Record<string, 'checking' | 'exists' | 'missing'>>({});
 
@@ -246,7 +122,7 @@ const AdminKycPage: React.FC = () => {
       document.activeElement.blur();
     }
     setSelectedRequest(request);
-    setVerifyStatus('Verified');
+    setVerifyStatus('Admin Verified');
     setVerifyRemarks('');
     setVerifyDialogOpen(true);
   };
@@ -332,10 +208,10 @@ const AdminKycPage: React.FC = () => {
   };
 
   const getStatusColor = (status: string) => {
-    switch (normalizeKycStatus(status)) {
-      case 'VERIFIED':
+    switch (status?.toUpperCase()) {
+      case 'ADMIN VERIFIED':
         return 'success';
-      case 'UNDER_REVIEW_ADMIN':
+      case 'EMPLOYEE APPROVED':
         return 'info';
       case 'REJECTED':
         return 'error';
@@ -427,8 +303,8 @@ const AdminKycPage: React.FC = () => {
               >
                 <MenuItem value="ALL">All</MenuItem>
                 <MenuItem value="PENDING">Pending</MenuItem>
-                <MenuItem value="UNDER_REVIEW_ADMIN">Under Review (Admin)</MenuItem>
-                <MenuItem value="VERIFIED">Verified</MenuItem>
+                <MenuItem value="EMPLOYEE APPROVED">Employee Approved</MenuItem>
+                <MenuItem value="ADMIN VERIFIED">Admin Verified</MenuItem>
                 <MenuItem value="REJECTED">Rejected</MenuItem>
               </TextField>
             </Grid>
@@ -488,7 +364,7 @@ const AdminKycPage: React.FC = () => {
                           {request.createdAt ? new Date(request.createdAt).toLocaleString() : '—'}
                         </TableCell>
                         <TableCell align="right">
-                          {normalizedStatus === 'UNDER_REVIEW_ADMIN' && (
+                          {normalizedStatus === 'EMPLOYEE APPROVED' && (
                             <Stack direction="row" spacing={1} justifyContent="flex-end">
                               <Button
                                 size="small"
@@ -659,7 +535,7 @@ const AdminKycPage: React.FC = () => {
         disableRestoreFocus
       >
         <DialogTitle>
-          {verifyStatus === 'Verified' ? 'Verify KYC Request' : 'Reject KYC Request'}
+          {verifyStatus === 'Admin Verified' ? 'Verify KYC Request' : 'Reject KYC Request'}
         </DialogTitle>
         <DialogContent>
           <Stack spacing={2} mt={1}>
@@ -683,7 +559,7 @@ const AdminKycPage: React.FC = () => {
               value={verifyStatus}
               onChange={(event) => setVerifyStatus(event.target.value)}
             >
-              <MenuItem value="Verified">Verified</MenuItem>
+              <MenuItem value="Admin Verified">Admin Verified</MenuItem>
               <MenuItem value="Rejected">Rejected</MenuItem>
             </TextField>
             <TextField
@@ -702,9 +578,9 @@ const AdminKycPage: React.FC = () => {
           <Button
             onClick={handleVerifySubmit}
             variant="contained"
-            color={verifyStatus === 'Verified' ? 'success' : 'error'}
+            color={verifyStatus === 'Admin Verified' ? 'success' : 'error'}
           >
-            {verifyStatus === 'Verified' ? 'Verify' : 'Reject'}
+            {verifyStatus === 'Admin Verified' ? 'Verify' : 'Reject'}
           </Button>
         </DialogActions>
       </Dialog>

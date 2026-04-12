@@ -87,8 +87,8 @@ export default function EmployeeDashboard() {
           <Card sx={{ border: "1px solid", borderColor: "divider" }}>
             <CardContent>
               <Typography variant="h6" mb={2}>Daily Transaction Trend (7 Days)</Typography>
-              <Box sx={{ width: "100%", height: 320 }}>
-                <ResponsiveContainer>
+              <Box sx={{ width: "100%", height: 320, minWidth: 0 }}>
+                <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={trendData}>
                     <XAxis dataKey="date" />
                     <YAxis />

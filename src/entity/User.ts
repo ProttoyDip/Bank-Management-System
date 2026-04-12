@@ -62,7 +62,7 @@ export class User {
     securityQuestions!: string; // JSON string
 
     // Admin-specific fields
-@Column({ type: "nvarchar", length: 20, nullable: true, unique: true })
+    @Column({ type: "nvarchar", length: 20, nullable: true })
     adminId!: string;
 
     @Column({ type: "nvarchar", length: 50, nullable: true })

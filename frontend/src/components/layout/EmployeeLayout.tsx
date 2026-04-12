@@ -7,7 +7,7 @@ import NotificationsIcon from "@mui/icons-material/Notifications";
 import EmployeeSidebar from "./EmployeeSidebar";
 import { useAuth } from "../../context/AuthContext";
 import { Notification } from "../../types";
-import { useNotification } from "../../context/NotificationContext";
+import { useNotification } from "../../context/useNotification";
 
 const DRAWER_WIDTH = 260;
 
@@ -275,4 +275,3 @@ export default function EmployeeLayout() {
     </Box>
   );
 }
-

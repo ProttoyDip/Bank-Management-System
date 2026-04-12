@@ -1,9 +1,7 @@
 import { Router, Response } from "express";
-import fs from "fs";
-import path from "path";
-import { Between, FindOptionsWhere, ILike } from "typeorm";
+import { Brackets, FindOptionsWhere, ILike } from "typeorm";
 import { z } from "zod";
-import { verifyAdminRole, verifyToken, AuthRequest, requireSuperAdmin } from "../middleware/auth";
+import { verifyAdminRole, verifyToken, AuthRequest, requireInviteEmployeeAccess, requireSuperAdmin } from "../middleware/auth";
 import { getDataSource } from "../data-source";
 import { User } from "../entity/User";
 import { Employee } from "../entity/Employee";
@@ -17,8 +15,9 @@ import { AdminSetting } from "../entity/AdminSetting";
 import { Ticket, TicketStatus } from "../entity/Ticket";
 import { hashPassword } from "../utils/hashPassword";
 import { generateAdminId } from "../utils/helpers";
-import { sendEmployeeInviteEmail, getEmailDiagnostics } from "../utils/emailService";
+import { sendEmployeeInviteEmail, sendKycDecisionEmail, getEmailDiagnostics } from "../utils/emailService";
 import { generateInviteToken } from "../utils/inviteToken";
+import { createUserNotification } from "../utils/notificationService";
 
 const router = Router();
 const CUSTOMER_ROLE = "Customer";
@@ -62,7 +61,7 @@ const loanDecisionSchema = z.object({
 });
 
 const kycVerifySchema = z.object({
-    status: z.enum(["Verified", "Rejected"]),
+    status: z.enum(["Admin Verified", "Rejected"]),
     remarks: z.string().trim().max(500).optional(),
 });
 
@@ -112,76 +111,430 @@ function sendValidationError(res: Response, message: string) {
 
 function buildInviteUrl(token: string): string {
     const frontendBase = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
-    return `${frontendBase}/accept-invite?token=${encodeURIComponent(token)}`;
+    return `${frontendBase}/employee/register?token=${encodeURIComponent(token)}`;
 }
 
-function resolveUploadsRoot(): string {
-    const candidates = [
-        path.resolve(process.cwd(), "uploads"),
-        path.resolve(process.cwd(), "..", "uploads"),
-        path.resolve(__dirname, "..", "..", "uploads"),
-        path.resolve(__dirname, "..", "..", "..", "uploads"),
-    ];
-    return candidates.find((candidate) => fs.existsSync(candidate)) || candidates[0];
+type KycDocumentPreview = {
+    id: string;
+    type: string;
+    fileName: string;
+    filePath: string;
+    mimeType: string;
+    isValid: boolean | null;
+    validationRemark: string | null;
+};
+
+type KycProfile = {
+    fullName?: string;
+    dob?: string;
+    address?: string;
+    nationalId?: string;
+    passportNumber?: string;
+    country?: string;
+    transactionIntent?: string;
+    riskLevel?: string;
+    riskScore?: number;
+    riskFactors?: string[];
+    submittedAt?: string;
+};
+
+function parseDateInput(value: unknown): Date | null {
+    const date = new Date(String(value || "").trim());
+    return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function extractKycFilePaths(documentRef: string | null): string[] {
-    if (!documentRef || typeof documentRef !== "string") return [];
+function inferFileName(filePath: string, fallbackType: string): string {
+    const trimmed = String(filePath || "").trim();
+    if (!trimmed) {
+        return `${fallbackType.toLowerCase().replace(/\s+/g, "-")}.pdf`;
+    }
 
-    const collected = new Set<string>();
-    const trimmed = documentRef.trim();
+    const segments = trimmed.split(/[\\/]/);
+    return segments[segments.length - 1] || `${fallbackType.toLowerCase().replace(/\s+/g, "-")}.pdf`;
+}
 
-    const collectFromValue = (value: unknown): void => {
-        if (typeof value === "string") {
-            const candidate = value.trim();
-            if (candidate.startsWith("/uploads/") || candidate.startsWith("uploads/") || candidate.startsWith("kyc/")) {
-                collected.add(candidate);
-            }
-            return;
-        }
+function inferMimeType(filePath: string): string {
+    const lower = String(filePath || "").toLowerCase();
+    if (lower.endsWith(".png")) return "image/png";
+    if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+    if (lower.endsWith(".webp")) return "image/webp";
+    if (lower.endsWith(".pdf")) return "application/pdf";
+    return "application/octet-stream";
+}
 
-        if (Array.isArray(value)) {
-            value.forEach(collectFromValue);
-            return;
-        }
+function parseDocumentPreview(documentType: string | null, documentRef: string | null): KycDocumentPreview[] {
+    if (!documentRef) {
+        return [];
+    }
 
-        if (value && typeof value === "object") {
-            const record = value as Record<string, unknown>;
-            if (typeof record.filePath === "string") {
-                collectFromValue(record.filePath);
-            }
-            Object.values(record).forEach(collectFromValue);
-        }
-    };
+    const fallbackType = documentType || "Document";
+    try {
+        const parsed = JSON.parse(documentRef);
+        const documents = Array.isArray(parsed)
+            ? parsed
+            : Array.isArray(parsed?.documents)
+                ? parsed.documents
+                : parsed?.documents
+                    ? [parsed.documents]
+                    : parsed
+                        ? [parsed]
+                        : [];
+
+        return documents.map((document: any, index: number) => {
+            const filePath = String(document.filePath || document.path || document.url || documentRef);
+            const type = String(document.type || document.documentType || fallbackType);
+            return {
+                id: String(document.id || `${fallbackType}-${index + 1}`),
+                type,
+                filePath,
+                fileName: inferFileName(filePath, type),
+                mimeType: inferMimeType(filePath),
+                isValid: typeof document.isValid === "boolean" ? document.isValid : null,
+                validationRemark: document.validationRemark || document.note || null,
+            };
+        });
+    } catch {
+        const filePath = documentRef;
+        return [
+            {
+                id: "primary-document",
+                type: fallbackType,
+                filePath,
+                fileName: inferFileName(filePath, fallbackType),
+                mimeType: inferMimeType(filePath),
+                isValid: null,
+                validationRemark: null,
+            },
+        ];
+    }
+}
+
+function parseKycProfile(documentRef: string | null): KycProfile {
+    if (!documentRef) {
+        return {};
+    }
 
     try {
-        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-            collectFromValue(JSON.parse(trimmed));
-        } else {
-            collectFromValue(trimmed);
+        const parsed = JSON.parse(documentRef);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            return (parsed.profile || {}) as KycProfile;
         }
     } catch {
-        collectFromValue(trimmed);
+        return {};
     }
 
-    return Array.from(collected);
+    return {};
 }
 
-function resolveKycFilePath(originalPath: string, uploadsRoot: string): string {
-    const normalized = originalPath.replace(/\\/g, "/").trim();
-
-    if (/^[A-Za-z]:\//.test(normalized)) {
-        return path.normalize(normalized);
+function serializeDocumentPreview(documents: KycDocumentPreview[]): string {
+    if (!documents.length) {
+        return "";
     }
 
-    const withoutLeadingSlash = normalized.replace(/^\/+/, "");
-    let relativePath = withoutLeadingSlash;
+    return JSON.stringify(documents.map((document) => ({
+        id: document.id,
+        type: document.type,
+        filePath: document.filePath,
+        fileName: document.fileName,
+        mimeType: document.mimeType,
+        isValid: document.isValid,
+        validationRemark: document.validationRemark,
+    })));
+}
 
-    if (relativePath.startsWith("uploads/")) {
-        relativePath = relativePath.slice("uploads/".length);
+function deriveRiskLevel(request: KycRequest): { score: number; level: "Low" | "Medium" | "High"; factors: string[] } {
+    const factors: string[] = [];
+    let score = 25;
+    const profile = parseKycProfile(request.documentRef);
+
+    if (!request.documentType) {
+        score += 20;
+        factors.push("Missing document type");
     }
 
-    return path.resolve(uploadsRoot, relativePath);
+    if (!request.documentRef) {
+        score += 30;
+        factors.push("No document attachment");
+    }
+
+    if (!request.user?.address) {
+        score += 10;
+        factors.push("No address on profile");
+    }
+
+    if (!request.user?.nationalId) {
+        score += 10;
+        factors.push("No national ID recorded");
+    }
+
+    if (!profile.country) {
+        score += 8;
+        factors.push("No country provided");
+    }
+
+    if (!profile.transactionIntent) {
+        score += 8;
+        factors.push("No transaction intent provided");
+    }
+
+    if (request.status === KycStatus.REJECTED) {
+        score += 20;
+        factors.push("Previously rejected");
+    }
+
+    const normalizedRemarks = String(request.remarks || "").toLowerCase();
+    if (normalizedRemarks.includes("mismatch") || normalizedRemarks.includes("fraud") || normalizedRemarks.includes("blurry")) {
+        score += 15;
+        factors.push("Review remarks indicate data issues");
+    }
+
+    score = Math.max(5, Math.min(95, score));
+
+    const level = score >= 70 ? "High" : score >= 40 ? "Medium" : "Low";
+    return { score, level, factors };
+}
+
+function buildKycTimeline(request: KycRequest): Array<{
+    label: string;
+    at: Date | string;
+    status: string;
+    comment?: string;
+}> {
+    const documents = parseDocumentPreview(request.documentType, request.documentRef);
+    const timeline: Array<{
+        label: string;
+        at: Date | string;
+        status: string;
+        comment?: string;
+    }> = [
+        {
+            label: "Submitted",
+            at: request.createdAt,
+            status: String(KycStatus.PENDING),
+            comment: request.documentType ? `Submitted ${request.documentType}` : "KYC request submitted",
+        },
+    ];
+
+    if (documents.length > 0) {
+        timeline.push({
+            label: "Documents Uploaded",
+            at: request.createdAt,
+            status: "Document Review",
+            comment: `${documents.length} document${documents.length === 1 ? "" : "s"} attached`,
+        });
+    }
+
+    if (request.verifiedAt) {
+        timeline.push({
+            label: request.status === KycStatus.REJECTED ? "Rejected" : "Approved",
+            at: request.verifiedAt,
+            status: String(request.status),
+            comment: request.remarks || "Reviewed by admin",
+        });
+    }
+
+    return timeline;
+}
+
+function enrichKycRequest(request: KycRequest) {
+    const profile = parseKycProfile(request.documentRef);
+    const risk = deriveRiskLevel(request);
+    const documents = parseDocumentPreview(request.documentType, request.documentRef);
+
+    return {
+        ...request,
+        ...profile,
+        profile,
+        user: request.user
+            ? {
+                ...request.user,
+                fullName: request.user.name,
+            }
+            : request.user,
+        fullName: request.user?.name || "",
+        dob: profile.dob || null,
+        country: profile.country || null,
+        transactionIntent: profile.transactionIntent || null,
+        submittedDate: request.createdAt,
+        riskLevel: risk.level,
+        riskScore: risk.score,
+        riskFactors: risk.factors,
+        documents,
+        timeline: buildKycTimeline(request),
+    };
+}
+
+async function sendKycDecisionNotice(request: KycRequest): Promise<void> {
+    if (!request.user?.email) {
+        return;
+    }
+
+    await sendKycDecisionEmail(request.user.email, {
+        userName: request.user.name || request.user.email,
+        status: request.status === KycStatus.REJECTED ? "Rejected" : "Approved",
+        remarks: request.remarks,
+        riskLevel: deriveRiskLevel(request).level,
+    });
+}
+
+async function getAdminDashboardStats() {
+    const dataSource = getDataSource();
+    const userRepository = dataSource.getRepository(User);
+    const employeeRepository = dataSource.getRepository(Employee);
+    const accountRepository = dataSource.getRepository(Account);
+    const transactionRepository = dataSource.getRepository(Transaction);
+    const loanRepository = dataSource.getRepository(Loan);
+    const kycRepository = dataSource.getRepository(KycRequest);
+
+    const [totalCustomers, totalEmployees, totalAccounts, totalTransactions, pendingLoans, balanceResult, recentTransactions, summaryRows, kycCounts, totalKyc] = await Promise.all([
+        userRepository.count({ where: { role: CUSTOMER_ROLE } }),
+        employeeRepository.count({ where: { isActive: true } }),
+        accountRepository.count(),
+        transactionRepository.count(),
+        loanRepository.count({ where: { status: LoanStatus.PENDING } }),
+        accountRepository
+            .createQueryBuilder("account")
+            .select("COALESCE(SUM(account.balance), 0)", "totalBankBalance")
+            .getRawOne(),
+        transactionRepository.find({
+            relations: { account: true },
+            order: { createdAt: "DESC" },
+            take: 5,
+        }),
+        transactionRepository
+            .createQueryBuilder("transaction")
+            .select("transaction.type", "type")
+            .addSelect("COUNT(transaction.id)", "count")
+            .addSelect("COALESCE(SUM(transaction.amount), 0)", "amount")
+            .groupBy("transaction.type")
+            .getRawMany(),
+        kycRepository
+            .createQueryBuilder("kyc")
+            .select("kyc.status", "status")
+            .addSelect("COUNT(kyc.id)", "count")
+            .groupBy("kyc.status")
+            .getRawMany(),
+        kycRepository.count(),
+    ]);
+
+    const kycStatusSummary = kycCounts.reduce<Record<string, number>>((acc, row) => {
+        acc[String(row.status || "Unknown")] = Number(row.count || 0);
+        return acc;
+    }, {});
+    const pendingKyc = kycStatusSummary[KycStatus.EMPLOYEE_APPROVED] || 0;
+    const approvedKyc = kycStatusSummary[KycStatus.ADMIN_VERIFIED] || 0;
+    const rejectedKyc = kycStatusSummary[KycStatus.REJECTED] || 0;
+
+    return {
+        totalCustomers,
+        totalEmployees,
+        totalAccounts,
+        totalTransactions,
+        pendingLoans,
+        totalBankBalance: Number(balanceResult?.totalBankBalance || 0),
+        totalKyc,
+        pendingKyc,
+        approvedKyc,
+        rejectedKyc,
+        kycStatusSummary,
+        kycApprovalRate: totalKyc > 0 ? Number(((approvedKyc / totalKyc) * 100).toFixed(2)) : 0,
+        recentTransactions: recentTransactions.map(tx => ({
+            id: tx.id,
+            type: tx.type,
+            amount: tx.amount,
+            balanceAfter: tx.balanceAfter,
+            referenceNumber: tx.referenceNumber,
+            createdAt: tx.createdAt,
+            accountNumber: tx.account?.accountNumber || 'N/A',
+        })),
+        transactionSummary: summaryRows.map((row) => ({
+            type: row.type,
+            count: Number(row.count || 0),
+            amount: Number(row.amount || 0),
+        })),
+    };
+}
+
+async function applyKycDecision(req: AuthRequest, res: Response, decision: "Approved" | "Rejected"): Promise<Response | void> {
+    const parsed = kycVerifySchema.safeParse({
+        status: decision === "Approved" ? "Admin Verified" : "Rejected",
+        remarks: req.body?.remarks,
+    });
+
+    if (!parsed.success) {
+        return sendValidationError(res, "Invalid KYC verification payload");
+    }
+
+    try {
+        const dataSource = getDataSource();
+        const kycRepository = dataSource.getRepository(KycRequest);
+        const userRepository = dataSource.getRepository(User);
+        const accountRepository = dataSource.getRepository(Account);
+
+        const request = await kycRepository.findOne({
+            where: { id: Number(req.params.id) },
+            relations: { user: true },
+        });
+
+        if (!request) {
+            return res.status(404).json({ error: "KYC request not found" });
+        }
+
+        if (decision === "Approved" && request.status !== KycStatus.EMPLOYEE_APPROVED) {
+            return res.status(400).json({ success: false, message: "KYC must be employee-approved before admin verification" });
+        }
+
+        request.status = decision === "Approved" ? KycStatus.ADMIN_VERIFIED : KycStatus.REJECTED;
+        request.remarks = parsed.data.remarks || null;
+        request.verifiedAt = new Date();
+
+        await kycRepository.save(request);
+
+        if (request.userId) {
+            const user = await userRepository.findOne({ where: { id: request.userId }, relations: { accounts: true } });
+            if (user) {
+                user.status = decision === "Approved" ? "Active" : "Frozen";
+                await userRepository.save(user);
+
+                if (decision === "Rejected") {
+                    const accounts = Array.isArray(user.accounts) ? user.accounts : [];
+                    for (const account of accounts) {
+                        account.isActive = false;
+                        await accountRepository.save(account);
+                    }
+                }
+            }
+        }
+
+        await logAdminAction(
+            req,
+            decision === "Approved" ? "APPROVE_KYC" : "REJECT_KYC",
+            `KYC ${request.id} ${decision.toLowerCase()}`
+        );
+
+        try {
+            await sendKycDecisionNotice(request);
+        } catch (emailError) {
+            console.error("KYC notification email failed:", emailError);
+        }
+
+        await createUserNotification({
+            userId: request.userId,
+            message: decision === "Approved"
+                ? "Your KYC has been verified."
+                : "Your KYC has been rejected. Please review remarks and resubmit.",
+            type: "kyc",
+        });
+
+        return res.json({
+            success: true,
+            message: `KYC ${decision.toLowerCase()} successfully`,
+            data: enrichKycRequest(request),
+        });
+    } catch (error) {
+        console.error("KYC decision error:", error);
+        return res.status(500).json({ success: false, message: "Failed to update KYC request" });
+    }
 }
 
 router.get("/session", (req, res) => {
@@ -191,61 +544,10 @@ router.get("/session", (req, res) => {
 
 router.get("/dashboard-stats", async (_req, res) => {
     try {
-        const dataSource = getDataSource();
-        const userRepository = dataSource.getRepository(User);
-        const employeeRepository = dataSource.getRepository(Employee);
-        const accountRepository = dataSource.getRepository(Account);
-        const transactionRepository = dataSource.getRepository(Transaction);
-        const loanRepository = dataSource.getRepository(Loan);
-
-        const [totalCustomers, totalEmployees, totalAccounts, totalTransactions, pendingLoans, balanceResult, recentTransactions, summaryRows] = await Promise.all([
-            userRepository.count({ where: { role: CUSTOMER_ROLE } }),
-            employeeRepository.count({ where: { isActive: true } }),
-            accountRepository.count(),
-            transactionRepository.count(),
-            loanRepository.count({ where: { status: LoanStatus.PENDING } }),
-            accountRepository
-                .createQueryBuilder("account")
-                .select("COALESCE(SUM(account.balance), 0)", "totalBankBalance")
-                .getRawOne(),
-            transactionRepository.find({
-                relations: { account: true },
-                order: { createdAt: "DESC" },
-                take: 5,
-            }),
-            transactionRepository
-                .createQueryBuilder("transaction")
-                .select("transaction.type", "type")
-                .addSelect("COUNT(transaction.id)", "count")
-                .addSelect("COALESCE(SUM(transaction.amount), 0)", "amount")
-                .groupBy("transaction.type")
-                .getRawMany(),
-        ]);
-
+        const data = await getAdminDashboardStats();
         res.json({
             success: true,
-            data: {
-                totalCustomers,
-                totalEmployees,
-                totalAccounts,
-                totalTransactions,
-                pendingLoans,
-                totalBankBalance: Number(balanceResult?.totalBankBalance || 0),
-                recentTransactions: recentTransactions.map(tx => ({
-                    id: tx.id,
-                    type: tx.type,
-                    amount: tx.amount,
-                    balanceAfter: tx.balanceAfter,
-                    referenceNumber: tx.referenceNumber,
-                    createdAt: tx.createdAt,
-                    accountNumber: tx.account?.accountNumber || 'N/A',
-                })),
-                transactionSummary: summaryRows.map((row) => ({
-                    type: row.type,
-                    count: Number(row.count || 0),
-                    amount: Number(row.amount || 0),
-                })),
-            },
+            data,
         });
     } catch (error) {
         console.error("Admin dashboard stats error:", error);
@@ -253,7 +555,17 @@ router.get("/dashboard-stats", async (_req, res) => {
     }
 });
 
-router.post("/invite-employee", requireSuperAdmin, async (req, res) => {
+router.get("/stats", async (_req, res) => {
+    try {
+        const data = await getAdminDashboardStats();
+        res.json({ success: true, data });
+    } catch (error) {
+        console.error("Admin stats error:", error);
+        res.status(500).json({ success: false, message: "Failed to load admin stats" });
+    }
+});
+
+router.post("/invite-employee", requireInviteEmployeeAccess, async (req, res) => {
     const { email } = req.body;
 
     if (!email || typeof email !== 'string' || !email.includes('@')) {
@@ -266,27 +578,41 @@ router.post("/invite-employee", requireSuperAdmin, async (req, res) => {
         const userRepository = dataSource.getRepository(User);
 
         const emailLower = email.toLowerCase();
-        const existingInvite = await inviteRepository.findOne({ where: { email: emailLower, status: "Pending" } });
-        if (existingInvite) {
+        const existingInvite = await inviteRepository.findOne({ where: { email: emailLower } });
+        if (existingInvite && String(existingInvite.status).toLowerCase() === "pending") {
             return res.status(409).json({ success: false, message: "A pending invite already exists for this email" });
+        }
+
+        if (existingInvite && String(existingInvite.status).toLowerCase() === "accepted") {
+            return res.status(409).json({ success: false, message: "This invite has already been accepted" });
         }
 
         const existingUser = await userRepository.findOne({ where: { email: emailLower } });
         if (existingUser) {
-            return res.status(409).json({ success: false, message: "A user with this email already exists" });
+            if (String(existingUser.role || "").toLowerCase() !== "employee") {
+                return res.status(409).json({ success: false, message: "Email already used by another account" });
+            }
+            return res.status(409).json({ success: false, message: "Employee account already exists for this email" });
         }
 
-        const invite = inviteRepository.create({
-            email: emailLower,
-            name: 'Employee',
-            department: 'General',
-            position: 'Employee',
-            salary: 0,
-            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-            notes: `Invited to join as Employee on ${new Date().toISOString()}`,
-            status: "Pending",
-            createdByAdminId: getAdminActorId(req),
-        });
+        const invite = existingInvite
+            ? Object.assign(existingInvite, {
+                status: "Pending",
+                expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                notes: `Invited to join as Employee on ${new Date().toISOString()}`.slice(0, 255),
+                createdByAdminId: getAdminActorId(req),
+            })
+            : inviteRepository.create({
+                email: emailLower,
+                name: 'Employee',
+                department: 'General',
+                position: 'Employee',
+                salary: 0,
+                expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+                notes: `Invited to join as Employee on ${new Date().toISOString()}`,
+                status: "Pending",
+                createdByAdminId: getAdminActorId(req),
+            });
 
         const savedInvite = await inviteRepository.save(invite);
         const inviteToken = generateInviteToken({
@@ -316,7 +642,7 @@ router.post("/invite-employee", requireSuperAdmin, async (req, res) => {
     }
 });
 
-router.post("/invites/:id/resend", requireSuperAdmin, async (req, res) => {
+router.post("/invites/:id/resend", requireInviteEmployeeAccess, async (req, res) => {
     try {
         const inviteRepository = getDataSource().getRepository(EmployeeInvite);
         const invite = await inviteRepository.findOne({ where: { id: Number(req.params.id) } });
@@ -362,7 +688,7 @@ router.post("/invites/:id/resend", requireSuperAdmin, async (req, res) => {
     }
 });
 
-router.get("/smtp-diagnostics", requireSuperAdmin, async (_req, res) => {
+router.get("/smtp-diagnostics", requireInviteEmployeeAccess, async (_req, res) => {
     try {
         const diagnostics = await getEmailDiagnostics();
         res.json({ success: true, data: diagnostics });
@@ -372,7 +698,7 @@ router.get("/smtp-diagnostics", requireSuperAdmin, async (_req, res) => {
     }
 });
 
-router.get("/invites", requireSuperAdmin, async (_req, res) => {
+router.get("/invites", requireInviteEmployeeAccess, async (_req, res) => {
     try {
         const invites = await getDataSource().getRepository(EmployeeInvite).find({
             order: { createdAt: "DESC" },
@@ -385,7 +711,7 @@ router.get("/invites", requireSuperAdmin, async (_req, res) => {
     }
 });
 
-router.delete("/invites/:id", requireSuperAdmin, async (req, res) => {
+router.delete("/invites/:id", requireInviteEmployeeAccess, async (req, res) => {
     try {
         const inviteRepository = getDataSource().getRepository(EmployeeInvite);
         const invite = await inviteRepository.findOne({ where: { id: Number(req.params.id) } });
@@ -406,10 +732,55 @@ router.delete("/invites/:id", requireSuperAdmin, async (req, res) => {
 
 router.get("/employees", async (_req, res) => {
     try {
-        const employees = await getDataSource().getRepository(Employee).find({
-            relations: { user: true },
-            order: { createdAt: "DESC" },
-        });
+        const rows = await getDataSource()
+            .createQueryBuilder(Employee, "employee")
+            .leftJoin("employee.user", "user")
+            .select([
+                "employee.id",
+                "employee.userId",
+                "employee.employeeId",
+                "employee.department",
+                "employee.position",
+                "employee.salary",
+                "employee.hireDate",
+                "employee.isActive",
+                "employee.createdAt",
+                "employee.updatedAt",
+                "user.id",
+                "user.name",
+                "user.email",
+                "user.phone",
+                "user.address",
+                "user.status",
+            ])
+            .orderBy("employee.createdAt", "DESC")
+            .getRawMany();
+
+        const employees = rows.map((row) => ({
+            id: Number(row.employee_id),
+            userId: Number(row.employee_userId),
+            employeeId: row.employee_employeeId,
+            department: row.employee_department,
+            position: row.employee_position,
+            salary: Number(row.employee_salary || 0),
+            hireDate: row.employee_hireDate,
+            isActive: Boolean(row.employee_isActive),
+            createdAt: row.employee_createdAt,
+            updatedAt: row.employee_updatedAt,
+            name: row.user_name,
+            email: row.user_email,
+            phone: row.user_phone,
+            address: row.user_address,
+            status: row.user_status,
+            user: {
+                id: Number(row.user_id),
+                name: row.user_name,
+                email: row.user_email,
+                phone: row.user_phone,
+                address: row.user_address,
+                status: row.user_status,
+            },
+        }));
 
         res.json({ success: true, data: employees });
     } catch (error) {
@@ -425,10 +796,29 @@ router.patch("/employees/:id/status", requireSuperAdmin, async (req, res) => {
 
     try {
         const employeeRepository = getDataSource().getRepository(Employee);
-        const employee = await employeeRepository.findOne({
-            where: { id: Number(req.params.id) },
-            relations: { user: true },
-        });
+        const employee = await employeeRepository
+            .createQueryBuilder("employee")
+            .leftJoin("employee.user", "user")
+            .select([
+                "employee.id",
+                "employee.userId",
+                "employee.employeeId",
+                "employee.department",
+                "employee.position",
+                "employee.salary",
+                "employee.hireDate",
+                "employee.isActive",
+                "employee.createdAt",
+                "employee.updatedAt",
+                "user.id",
+                "user.name",
+                "user.email",
+                "user.phone",
+                "user.address",
+                "user.status",
+            ])
+            .where("employee.id = :id", { id: Number(req.params.id) })
+            .getOne();
 
         if (!employee) {
             return res.status(404).json({ success: false, message: "Employee not found" });
@@ -884,6 +1274,11 @@ router.put("/loans/:id/approve", async (req, res) => {
         });
 
         await logAdminAction(req, "APPROVE_LOAN", `Loan ${req.params.id} approved`);
+        await createUserNotification({
+            userId: result.loan.userId,
+            message: `Your loan ${result.loan.loanNumber} has been approved and disbursed.`,
+            type: "loan",
+        });
 
         res.json({ success: true, data: result, message: "Loan approved successfully" });
     } catch (error) {
@@ -932,6 +1327,11 @@ router.put("/loans/:id/reject", async (req, res) => {
 
         const updated = await loanRepository.save(loan);
         await logAdminAction(req, "REJECT_LOAN", `Loan ${loan.id} rejected`);
+        await createUserNotification({
+            userId: loan.userId,
+            message: `Your loan ${loan.loanNumber} has been rejected.`,
+            type: "loan",
+        });
 
         res.json({ success: true, data: updated, message: "Loan rejected successfully" });
     } catch (error) {
@@ -940,120 +1340,164 @@ router.put("/loans/:id/reject", async (req, res) => {
     }
 });
 
-router.get("/kyc", async (_req, res) => {
+router.get("/kyc", async (req, res) => {
     try {
-        const requests = await getDataSource().getRepository(KycRequest).find({
-            relations: { user: true },
-            order: { createdAt: "DESC" },
-        });
+        const repository = getDataSource().getRepository(KycRequest);
+        const status = String(req.query.status || "").trim();
+        const search = String(req.query.search || req.query.q || "").trim().toLowerCase();
+        const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+        const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || "25"), 10) || 25));
+        const dateFrom = parseDateInput(req.query.dateFrom);
+        const dateTo = parseDateInput(req.query.dateTo);
 
-        res.json({ success: true, data: requests });
+        const qb = repository
+            .createQueryBuilder("kyc")
+            .leftJoinAndSelect("kyc.user", "user");
+
+        if (status && status.toUpperCase() !== "ALL") {
+            qb.andWhere("UPPER(kyc.status) = :status", { status: status.toUpperCase() });
+        }
+
+        if (search) {
+            qb.andWhere(new Brackets((subQuery) => {
+                subQuery
+                    .where("LOWER(user.name) LIKE :search", { search: `%${search}%` })
+                    .orWhere("LOWER(user.email) LIKE :search", { search: `%${search}%` })
+                    .orWhere("LOWER(kyc.documentType) LIKE :search", { search: `%${search}%` })
+                    .orWhere("LOWER(kyc.documentRef) LIKE :search", { search: `%${search}%` })
+                    .orWhere("LOWER(kyc.remarks) LIKE :search", { search: `%${search}%` });
+            }));
+        }
+
+        if (dateFrom) {
+            qb.andWhere("kyc.createdAt >= :dateFrom", { dateFrom });
+        }
+
+        if (dateTo) {
+            qb.andWhere("kyc.createdAt <= :dateTo", { dateTo });
+        }
+
+        const [items, total] = await qb
+            .orderBy("kyc.createdAt", "DESC")
+            .skip((page - 1) * limit)
+            .take(limit)
+            .getManyAndCount();
+
+        const [pending, approved, rejected] = await Promise.all([
+            repository.count({ where: { status: KycStatus.EMPLOYEE_APPROVED } }),
+            repository.count({ where: { status: KycStatus.ADMIN_VERIFIED } }),
+            repository.count({ where: { status: KycStatus.REJECTED } }),
+        ]);
+
+        res.json({
+            success: true,
+            data: items.map(enrichKycRequest),
+            meta: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+            },
+            stats: {
+                total,
+                pending,
+                approved,
+                rejected,
+                approvalRate: total > 0 ? Number(((approved / total) * 100).toFixed(2)) : 0,
+            },
+        });
     } catch (error) {
         console.error("Get KYC error:", error);
         res.status(500).json({ success: false, message: "Failed to load KYC requests" });
     }
 });
 
-router.get("/kyc/file-path-audit", async (req, res) => {
+router.get("/kyc/:id", async (req, res) => {
     try {
-        const kycRepository = getDataSource().getRepository(KycRequest);
-        const requests = await kycRepository.find({
+        const id = Number(req.params.id);
+        const repository = getDataSource().getRepository(KycRequest);
+        const request = await repository.findOne({
+            where: { id },
             relations: { user: true },
-            order: { createdAt: "DESC" },
         });
 
-        const uploadsRoot = resolveUploadsRoot();
-        let checkedFiles = 0;
-        let requestsWithFilePaths = 0;
-        const missing: Array<{
-            kycId: number;
-            userId: number;
-            userEmail: string | null;
-            status: string;
-            createdAt: Date;
-            originalPath: string;
-            resolvedPath: string;
-        }> = [];
-
-        for (const requestRow of requests) {
-            const paths = extractKycFilePaths(requestRow.documentRef);
-            if (paths.length === 0) continue;
-
-            requestsWithFilePaths += 1;
-            for (const originalPath of paths) {
-                const resolvedPath = resolveKycFilePath(originalPath, uploadsRoot);
-                checkedFiles += 1;
-                if (!fs.existsSync(resolvedPath)) {
-                    missing.push({
-                        kycId: requestRow.id,
-                        userId: requestRow.userId,
-                        userEmail: requestRow.user?.email || null,
-                        status: requestRow.status,
-                        createdAt: requestRow.createdAt,
-                        originalPath,
-                        resolvedPath,
-                    });
-                }
-            }
+        if (!request) {
+            return res.status(404).json({ success: false, message: "KYC request not found" });
         }
+
+        const logs = await getDataSource().getRepository(ActivityLog)
+            .createQueryBuilder("log")
+            .where("LOWER(log.details) LIKE :needle", { needle: `%kyc ${id}%` })
+            .orderBy("log.createdAt", "DESC")
+            .take(20)
+            .getMany();
+
+        res.json({
+            success: true,
+            data: {
+                ...enrichKycRequest(request),
+                auditTrail: logs,
+            },
+        });
+    } catch (error) {
+        console.error("Get KYC details error:", error);
+        res.status(500).json({ success: false, message: "Failed to load KYC details" });
+    }
+});
+
+router.patch("/kyc/:id/documents/:documentId", async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        const documentId = String(req.params.documentId || "").trim();
+        const isValid = typeof req.body?.isValid === "boolean" ? req.body.isValid : null;
+        const validationRemark = String(req.body?.remarks || req.body?.validationRemark || "").trim() || null;
+
+        const repository = getDataSource().getRepository(KycRequest);
+        const request = await repository.findOne({
+            where: { id },
+            relations: { user: true },
+        });
+
+        if (!request) {
+            return res.status(404).json({ success: false, message: "KYC request not found" });
+        }
+
+        const documents = parseDocumentPreview(request.documentType, request.documentRef);
+        const updatedDocuments = documents.map((document) => (
+            document.id === documentId
+                ? { ...document, isValid, validationRemark }
+                : document
+        ));
+
+        request.documentRef = serializeDocumentPreview(updatedDocuments);
+        await repository.save(request);
 
         await logAdminAction(
             req as AuthRequest,
-            "AUDIT_KYC_FILE_PATHS",
-            `Checked ${checkedFiles} file paths; missing ${missing.length}`
+            "VALIDATE_KYC_DOCUMENT",
+            `KYC ${request.id} document ${documentId} marked ${isValid ? "valid" : "invalid"}`
         );
 
         return res.json({
             success: true,
-            data: {
-                uploadsRoot,
-                totalRequests: requests.length,
-                requestsWithFilePaths,
-                checkedFiles,
-                missingFiles: missing.length,
-                missing,
-            },
+            message: "Document validation updated successfully",
+            data: enrichKycRequest(request),
         });
     } catch (error) {
-        console.error("KYC file-path audit error:", error);
-        return res.status(500).json({ success: false, message: "Failed to audit KYC file paths" });
+        console.error("Validate KYC document error:", error);
+        return res.status(500).json({ success: false, message: "Failed to validate document" });
     }
 });
 
+router.post("/kyc/:id/approve", async (req, res) => applyKycDecision(req as AuthRequest, res, "Approved"));
+
+router.post("/kyc/:id/reject", async (req, res) => applyKycDecision(req as AuthRequest, res, "Rejected"));
+
 router.put("/kyc/:id/verify", async (req, res) => {
-    const parsed = kycVerifySchema.safeParse(req.body);
-
-    if (!parsed.success) {
-        return sendValidationError(res, "Invalid KYC verification payload");
-    }
-
-    try {
-        const kycRepository = getDataSource().getRepository(KycRequest);
-        const request = await kycRepository.findOne({ where: { id: Number(req.params.id) } });
-
-        if (!request) {
-            return res.status(404).json({ error: "KYC request not found" });
-        }
-
-        if (String(request.status).toLowerCase() !== KycStatus.UNDER_REVIEW_ADMIN.toLowerCase()) {
-            return res.status(400).json({
-                error: "KYC must be verified by employee and forwarded to admin before final decision"
-            });
-        }
-
-        request.status = parsed.data.status === "Verified" ? KycStatus.VERIFIED : KycStatus.REJECTED;
-        request.remarks = parsed.data.remarks || null;
-        request.verifiedByEmployeeId = getAdminActorId(req);
-        request.verifiedAt = new Date();
-
-        await kycRepository.save(request);
-        await logAdminAction(req, "VERIFY_KYC", `KYC ${request.id} updated to ${request.status}`);
-
-        res.json(request);
-    } catch (error) {
-        console.error("Verify KYC error:", error);
-        res.status(500).json({ error: "Failed to verify KYC request" });
-    }
+    const status = String(req.body?.status || "Admin Verified").trim().toLowerCase();
+    return status === "rejected"
+        ? applyKycDecision(req as AuthRequest, res, "Rejected")
+        : applyKycDecision(req as AuthRequest, res, "Approved");
 });
 
 router.get("/fraud-alerts", async (_req, res) => {

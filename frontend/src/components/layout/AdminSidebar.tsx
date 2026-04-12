@@ -20,6 +20,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import LogoutIcon from "@mui/icons-material/Logout";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
+import CreditCardIcon from "@mui/icons-material/CreditCard";
 import { useAuth } from "../../context/AuthContext";
 
 const adminNavItems = [
@@ -29,6 +30,7 @@ const adminNavItems = [
   { label: "Accounts", path: "/admin/accounts", icon: <AccountBalanceIcon /> },
   { label: "Transactions", path: "/admin/transactions", icon: <SwapHorizIcon /> },
   { label: "Loans", path: "/admin/loans", icon: <RequestQuoteIcon /> },
+  { label: "Card Applications", path: "/admin/card-applications", icon: <CreditCardIcon /> },
   { label: "KYC", path: "/admin/kyc", icon: <VerifiedUserIcon /> },
   { label: "Reports", path: "/admin/reports", icon: <AssessmentIcon /> },
   { label: "Settings", path: "/admin/settings", icon: <SettingsIcon /> },

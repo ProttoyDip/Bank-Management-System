@@ -8,7 +8,7 @@ import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
 import AdminSidebar from "./AdminSidebar";
 import { useAuth } from "../../context/AuthContext";
-import { useNotification } from "../../context/NotificationContext";
+import { useNotification } from "../../context/useNotification";
 import { Notification } from "../../types";
 import { useThemeContext } from "../../context/ThemeContext";
 
@@ -79,7 +79,6 @@ export default function AdminLayout() {
         sx={{ 
           width: { md: DRAWER_WIDTH }, 
           flexShrink: { md: 0 },
-          display: { xs: "none", md: "block" },
         }}
       >
         <Drawer
@@ -135,6 +134,7 @@ export default function AdminLayout() {
             bgcolor: "background.paper", 
             borderBottom: "1px solid", 
             borderColor: "divider",
+            display: { xs: "none", md: "block" },
           }}
         >
           <Toolbar sx={{ gap: 2, px: { xs: 2, md: 3 } }}>
@@ -286,4 +286,3 @@ export default function AdminLayout() {
     </Box>
   );
 }
-

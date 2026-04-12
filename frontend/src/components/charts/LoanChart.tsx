@@ -58,8 +58,8 @@ export default function LoanChart({ data }: LoanChartProps) {
   }, [data]);
 
   return (
-    <Box sx={{ width: "100%", height: 300 }}>
-      <ResponsiveContainer>
+    <Box sx={{ width: "100%", height: 300, minWidth: 0 }}>
+      <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
             data={chartData}
@@ -99,4 +99,3 @@ export default function LoanChart({ data }: LoanChartProps) {
     </Box>
   );
 }
-

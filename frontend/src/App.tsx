@@ -32,7 +32,7 @@ import AdminCustomersPage from "./pages/admin/AdminCustomersPage";
 import AdminAccountsPage from "./pages/admin/AdminAccountsPage";
 import AdminTransactionsPage from "./pages/admin/AdminTransactionsPage";
 import AdminLoansPage from "./pages/admin/AdminLoansPage";
-import AdminKycPage from "./pages/admin/AdminKycPage";
+import AdminKycDashboard from "./pages/admin/AdminKycDashboard";
 import AdminReportsPage from "./pages/admin/AdminReportsPage";
 import AdminSettingsPage from "./pages/admin/AdminSettingsPage";
 import AdminAuditLogsPage from "./pages/admin/AdminAuditLogsPage";
@@ -45,6 +45,8 @@ import EmployeeLoans from "./pages/employee/EmployeeLoans";
 import EmployeeKyc from "./pages/employee/EmployeeKyc";
 import EmployeeSupport from "./pages/employee/EmployeeSupport";
 import EmployeeReports from "./pages/employee/EmployeeReports";
+import CardPage from "./pages/CardPage";
+import CardApplicationsPage from "./pages/admin/CardApplicationsPage";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 function ThemedApp() {
@@ -65,6 +67,7 @@ function ThemedApp() {
                 <Route path="/verify-code" element={<PublicRoute><VerifyCode /></PublicRoute>} />
                 <Route path="/change-password" element={<PublicRoute><ChangePassword /></PublicRoute>} />
                 <Route path="/accept-invite" element={<PublicRoute><InviteAccept /></PublicRoute>} />
+                <Route path="/employee/register" element={<PublicRoute><InviteAccept /></PublicRoute>} />
 
                 <Route path="/admin" element={<ProtectedRoute allowedRoles={[UserRole.ADMIN]} />}>
                   <Route element={<AdminLayout />}>
@@ -75,10 +78,11 @@ function ThemedApp() {
                     <Route path="accounts" element={<AdminAccountsPage />} />
                     <Route path="transactions" element={<AdminTransactionsPage />} />
                     <Route path="loans" element={<AdminLoansPage />} />
-                    <Route path="kyc" element={<AdminKycPage />} />
+                    <Route path="kyc" element={<AdminKycDashboard />} />
                     <Route path="reports" element={<AdminReportsPage />} />
                     <Route path="settings" element={<AdminSettingsPage />} />
                     <Route path="logs" element={<AdminAuditLogsPage />} />
+                    <Route path="card-applications" element={<CardApplicationsPage />} />
                   </Route>
                 </Route>
 
@@ -106,6 +110,7 @@ function ThemedApp() {
                     <Route path="loans" element={<LoanList />} />
                     <Route path="kyc" element={<CustomerKyc />} />
                     <Route path="settings" element={<Settings />} />
+                    <Route path="card" element={<CardPage />} />
                   </Route>
                 </Route>
 

@@ -45,7 +45,7 @@ import { useNavigate } from "react-router-dom";
 import { useThemeContext } from "../../context/ThemeContext";
 import { useTheme } from "@mui/material";
 import { useAuth } from "../../context/AuthContext";
-import { useNotification } from "../../context/NotificationContext";
+import { useNotification } from "../../context/useNotification";
 import api from "../../services/api";
 import { Account, ApiResponse, Transaction, TransactionType } from "../../types";
 import { motion } from "framer-motion";
@@ -382,8 +382,8 @@ export default function CustomerDashboard() {
                   <Typography variant="h6" sx={{ fontWeight: 700 }}>Balance Trend</Typography>
                   <Chip icon={<TrendingUpIcon />} label="+12.4%" color="success" size="small" />
                 </Box>
-                <Box sx={{ height: 200 }}>
-                <ResponsiveContainer>
+                <Box sx={{ height: '250px', minHeight: 250, minWidth: 0 }}>
+                <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={filteredTrendData}>
                       <defs>
                         <linearGradient id="trendGradient" x1="0" y1="1" x2="0" y2="0">
@@ -699,8 +699,8 @@ export default function CustomerDashboard() {
                   <Typography color="text.secondary">No spending data yet</Typography>
                 </Box>
               ) : (
-                <Box sx={{ height: 250 }}>
-                  <PieResponsiveContainer>
+                <Box sx={{ height: '300px', minHeight: 300, minWidth: 0 }}>
+                  <PieResponsiveContainer width="100%" height="100%">
                     <PieChart>
                 <Pie
                   data={filteredSpendingData}

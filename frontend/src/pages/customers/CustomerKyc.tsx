@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -6,297 +6,429 @@ import {
   Card,
   CardContent,
   Chip,
-  CircularProgress,
-  Divider,
-  IconButton,
-  MenuItem,
+  Grid,
+  LinearProgress,
   Stack,
   TextField,
   Typography,
 } from "@mui/material";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import UploadFileIcon from "@mui/icons-material/UploadFile";
+import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import DescriptionIcon from "@mui/icons-material/Description";
 import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
-import api from "../../services/api";
+import SecurityIcon from "@mui/icons-material/Security";
+import { motion } from "framer-motion";
+import { z } from "zod";
+import { useAuth } from "../../context/AuthContext";
 import { KycRequest } from "../../types";
+import kycService, { KycSubmissionPayload } from "../../services/kycService";
 
-const DOCUMENT_TYPES = [
-  "National ID",
-  "Passport",
-  "Driving License",
-  "Utility Bill",
-  "Tax ID",
-  "Other",
-];
+const readFileAsDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
 
-const KYC_STATUS_LABEL: Record<string, string> = {
-  Pending: "Pending Employee Review",
-  "Under Review (Admin)": "Under Review By Admin",
-  Verified: "Verified",
-  Rejected: "Rejected",
+// Client-side validation matching backend Zod schema exactly
+const submitKycSchema = z.object({
+  fullName: z.string().trim().min(2).max(120),
+  dob: z.string().trim().min(4).max(40),
+  address: z.string().trim().min(5).max(255),
+  nationalId: z.string().trim().min(3).max(80).optional().nullable(),
+  passportNumber: z.string().trim().min(3).max(80).optional().nullable(),
+  country: z.string().trim().min(2).max(80),
+  transactionIntent: z.string().trim().min(3).max(255),
+  idDocument: z.object({
+    name: z.string().trim().min(1),
+    dataUrl: z.string().min(20), // Base64 data URL minimum length
+  }),
+  addressDocument: z.object({
+    name: z.string().trim().min(1),
+    dataUrl: z.string().min(20),
+  }),
+});
+
+const emptyForm = {
+  fullName: "",
+  dob: "",
+  address: "",
+  nationalId: "",
+  passportNumber: "",
+  country: "",
+  transactionIntent: "",
 };
 
-function getStatusChipColor(status: string): "warning" | "info" | "success" | "error" | "default" {
-  const normalized = String(status || "").toLowerCase();
-  if (normalized.includes("pending")) return "warning";
-  if (normalized.includes("under review")) return "info";
-  if (normalized.includes("verified")) return "success";
-  if (normalized.includes("reject")) return "error";
-  return "default";
-}
-
 export default function CustomerKyc() {
-  const [kycRequests, setKycRequests] = useState<KycRequest[]>([]);
+  const { user } = useAuth();
+  const [form, setForm] = useState(emptyForm);
+  const [idFile, setIdFile] = useState<File | null>(null);
+  const [addressFile, setAddressFile] = useState<File | null>(null);
+  const [currentKyc, setCurrentKyc] = useState<KycRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-
-  const [documentType, setDocumentType] = useState("National ID");
-  const [remarks, setRemarks] = useState("");
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-
-  const activeRequest = useMemo(() => {
-    return kycRequests.find((item) => {
-      const status = String(item.status || "").toLowerCase();
-      return status.includes("pending") || status.includes("under review");
-    });
-  }, [kycRequests]);
-
-  const loadKycRequests = async () => {
-    try {
-      setLoading(true);
-      setError("");
-      const res = await api.get("/users/me/kyc");
-      setKycRequests(Array.isArray(res.data?.data) ? res.data.data : []);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to load your KYC requests.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // New: Field-specific validation errors
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    loadKycRequests();
-  }, []);
-
-  const handleFileSelection = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    if (!files.length) return;
-
-    setSelectedFiles((prev) => {
-      const merged = [...prev, ...files];
-      if (merged.length > 10) {
-        setError("You can upload up to 10 files.");
+    const load = async () => {
+      try {
+        setLoading(true);
+        const current = await kycService.getMyKyc();
+        setCurrentKyc(current);
+        if (current?.profile) {
+          setForm((prev) => ({
+            ...prev,
+            fullName: current.profile?.fullName || current.fullName || prev.fullName,
+            dob: current.profile?.dob || current.dob || prev.dob,
+            address: current.profile?.address || current.user?.address || prev.address,
+            nationalId: current.profile?.nationalId || current.user?.nationalId || prev.nationalId,
+            passportNumber: current.profile?.passportNumber || prev.passportNumber,
+            country: current.profile?.country || current.country || prev.country,
+            transactionIntent: current.profile?.transactionIntent || current.transactionIntent || prev.transactionIntent,
+          }));
+        } else if (user) {
+          setForm((prev) => ({
+            ...prev,
+            fullName: user.name || prev.fullName,
+            address: user.address || prev.address,
+            nationalId: user.nationalId || prev.nationalId,
+          }));
+        }
+      } catch (e: any) {
+        setError(e?.response?.data?.message || "Failed to load your KYC status.");
+      } finally {
+        setLoading(false);
       }
-      return merged.slice(0, 10);
-    });
+    };
 
-    event.target.value = "";
-  };
+    load();
+  }, [user]);
 
-  const removeSelectedFile = (index: number) => {
-    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
-  };
+  const statusBadge = useMemo(() => {
+    const status = currentKyc?.status || "Not Submitted";
+    if (status === "Admin Verified") return <Chip color="success" label="Admin Verified" />;
+    if (status === "Employee Approved") return <Chip color="info" label="Employee Approved" />;
+    if (status === "Rejected") return <Chip color="error" label="Rejected" />;
+    if (status === "Pending") return <Chip color="warning" label="Pending Review" />;
+    return <Chip label="Not Submitted" />;
+  }, [currentKyc]);
 
-  const submitKyc = async () => {
-    if (selectedFiles.length === 0) {
-      setError("Select at least one document file from your device.");
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+    setFieldErrors({});
+
+    // Client-side validation first
+    if (!idFile || !addressFile) {
+      setError("Please upload both an identity document and a proof of address.");
       return;
     }
 
     try {
-      setSubmitting(true);
-      setError("");
-      setMessage("");
+      const [idDocument, addressDocument] = await Promise.all([
+        readFileAsDataUrl(idFile),
+        readFileAsDataUrl(addressFile),
+      ]);
 
-      const formData = new FormData();
-      formData.append("documentType", documentType);
-      if (remarks.trim()) {
-        formData.append("remarks", remarks.trim());
+      const payload: KycSubmissionPayload = {
+        fullName: form.fullName.trim(),
+        dob: form.dob.trim(),
+        address: form.address.trim(),
+        nationalId: form.nationalId?.trim() || undefined,
+        passportNumber: form.passportNumber?.trim() || undefined,
+        country: form.country.trim(),
+        transactionIntent: form.transactionIntent.trim(),
+        idDocument: { name: idFile.name, dataUrl: idDocument },
+        addressDocument: { name: addressFile.name, dataUrl: addressDocument },
+      };
+
+      // Validate against backend schema BEFORE API call
+      const validation = submitKycSchema.safeParse(payload);
+      if (!validation.success) {
+        const errors: Record<string, string> = {};
+        validation.error.issues.forEach((issue) => {
+          const path = issue.path.join(".");
+          errors[path] = issue.message;
+        });
+        setFieldErrors(errors);
+        setError("Please fix the errors below before submitting.");
+        return;
       }
-      selectedFiles.forEach((file) => {
-        formData.append("documents", file);
-      });
 
-      await api.post("/users/me/kyc", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
-
-      setMessage("KYC request submitted successfully.");
-      setRemarks("");
-      setSelectedFiles([]);
-      await loadKycRequests();
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to submit KYC request.");
+      // All good - proceed with API
+      setSubmitting(true);
+      const response = await kycService.submitKyc(payload);
+      setCurrentKyc(response);
+      setMessage("Your KYC submission has been sent for review.");
+      // Reset form
+      setIdFile(null);
+      setAddressFile(null);
+    } catch (e: any) {
+      setError(e?.response?.data?.message || e.message || "Failed to submit KYC.");
     } finally {
       setSubmitting(false);
     }
   };
 
+  if (loading) {
+    return <LinearProgress />;
+  }
+
   return (
-    <Box sx={{ p: { xs: 2, md: 3 }, display: "grid", gap: 3 }}>
-      <Box>
-        <Typography variant="h5" fontWeight={700} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <VerifiedUserIcon color="primary" />
-          KYC Document Submission
+    <Box>
+      <Stack spacing={1} sx={{ mb: 3 }}>
+        <Typography variant="h4" sx={{ fontWeight: 800 }}>
+          KYC Verification
         </Typography>
-        <Typography color="text.secondary" sx={{ mt: 0.5 }}>
-          Submit your identity documents for verification by employee and admin reviewers.
+        <Typography color="text.secondary">
+          Submit your identity documents so we can verify your account securely.
         </Typography>
-      </Box>
+      </Stack>
 
-      {error && <Alert severity="error">{error}</Alert>}
-      {message && <Alert severity="success">{message}</Alert>}
+      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>{error}</Alert>}
+      {message && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setMessage("")}>{message}</Alert>}
 
-      {activeRequest && (
-        <Alert severity="info">
-          You already have an active KYC request: <strong>{KYC_STATUS_LABEL[activeRequest.status] || activeRequest.status}</strong>.
-          You can submit another request after this one is completed.
-        </Alert>
-      )}
-
-      <Card>
-        <CardContent>
-          <Typography variant="h6" fontWeight={600}>
-            New KYC Request
-          </Typography>
-          <Typography color="text.secondary" sx={{ mt: 0.5, mb: 2 }}>
-            Select files directly from your device. Employees and admins will review and download these files from the dashboard.
-          </Typography>
-
-          <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-            <TextField
-              fullWidth
-              select
-              label="Primary Document Type"
-              value={documentType}
-              onChange={(e) => setDocumentType(e.target.value)}
-              disabled={Boolean(activeRequest) || submitting}
-            >
-              {DOCUMENT_TYPES.map((option) => (
-                <MenuItem key={option} value={option}>{option}</MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              fullWidth
-              label="Remarks (Optional)"
-              value={remarks}
-              onChange={(e) => setRemarks(e.target.value)}
-              disabled={Boolean(activeRequest) || submitting}
-              placeholder="Any context for reviewers"
-            />
-          </Stack>
-
-          <Divider sx={{ my: 2 }} />
-
-          <Stack spacing={2}>
-            <Button
-              variant="outlined"
-              component="label"
-              startIcon={<UploadFileIcon />}
-              disabled={Boolean(activeRequest) || submitting || selectedFiles.length >= 10}
-            >
-              Choose Documents
-              <input
-                hidden
-                type="file"
-                multiple
-                onChange={handleFileSelection}
-                accept=".pdf,.png,.jpg,.jpeg,.webp"
-              />
-            </Button>
-
-            {selectedFiles.length > 0 && (
-              <Stack spacing={1}>
-                {selectedFiles.map((file, index) => (
-                  <Card key={`${file.name}-${index}`} variant="outlined" sx={{ p: 1.25 }}>
-                    <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1.5}>
-                      <Box>
-                        <Typography fontWeight={600}>{file.name}</Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {(file.size / (1024 * 1024)).toFixed(2)} MB
-                        </Typography>
-                      </Box>
-                      <IconButton
-                        color="error"
-                        onClick={() => removeSelectedFile(index)}
-                        disabled={Boolean(activeRequest) || submitting}
-                      >
-                        <DeleteOutlineIcon />
-                      </IconButton>
-                    </Stack>
-                  </Card>
-                ))}
+      <Grid container spacing={3}>
+        <Grid item xs={12} lg={7}>
+          <Card sx={{ border: "1px solid", borderColor: "divider" }}>
+            <CardContent>
+              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
+                <CloudUploadIcon color="primary" />
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    Submit KYC
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Upload a valid identity document and proof of address.
+                  </Typography>
+                </Box>
               </Stack>
-            )}
 
-            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-              <Button
-                variant="contained"
-                onClick={submitKyc}
-                disabled={Boolean(activeRequest) || submitting}
-              >
-                {submitting ? "Uploading..." : "Submit KYC"}
-              </Button>
-            </Box>
-          </Stack>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent>
-          <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
-            KYC Request History
-          </Typography>
-
-          {loading ? (
-            <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
-              <CircularProgress size={24} />
-            </Box>
-          ) : kycRequests.length === 0 ? (
-            <Typography color="text.secondary">No KYC request submitted yet.</Typography>
-          ) : (
-            <Stack spacing={1.25}>
-              {kycRequests.map((item) => (
-                <Box
-                  key={item.id}
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: { xs: "flex-start", md: "center" },
-                    flexDirection: { xs: "column", md: "row" },
-                    gap: 1,
-                    border: 1,
-                    borderColor: "divider",
-                    borderRadius: 1.5,
-                    p: 1.5,
-                  }}
-                >
-                  <Box>
-                    <Typography fontWeight={600}>{item.documentType || "Document Set"}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Submitted: {new Date(item.createdAt).toLocaleString()}
+              <Box component="form" onSubmit={handleSubmit}>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Full Name"
+                      value={form.fullName}
+                      onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+                      required
+                      error={!!fieldErrors.fullName}
+                      helperText={fieldErrors.fullName}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      type="date"
+                      label="Date of Birth"
+                      value={form.dob}
+                      onChange={(e) => setForm({ ...form, dob: e.target.value })}
+                      InputLabelProps={{ shrink: true }}
+                      required
+                      error={!!fieldErrors.dob}
+                      helperText={fieldErrors.dob}
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Address"
+                      value={form.address}
+                      onChange={(e) => setForm({ ...form, address: e.target.value })}
+                      required
+                      multiline
+                      minRows={2}
+                      error={!!fieldErrors.address}
+                      helperText={fieldErrors.address}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="National ID or Passport"
+                      value={form.nationalId}
+                      onChange={(e) => setForm({ ...form, nationalId: e.target.value })}
+                      error={!!fieldErrors.nationalId}
+                      helperText={fieldErrors.nationalId}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Country"
+                      value={form.country}
+                      onChange={(e) => setForm({ ...form, country: e.target.value })}
+                      required
+                      error={!!fieldErrors.country}
+                      helperText={fieldErrors.country}
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Transaction Intent"
+                      placeholder="Why are you opening or using this account?"
+                      value={form.transactionIntent}
+                      onChange={(e) => setForm({ ...form, transactionIntent: e.target.value })}
+                      required
+                      multiline
+                      minRows={3}
+                      error={!!fieldErrors.transactionIntent}
+                      helperText={fieldErrors.transactionIntent}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      component="label"
+                      startIcon={<DescriptionIcon />}
+                      sx={{ py: 1.5 }}
+                      disabled={submitting}
+                    >
+                      Upload ID Document {idFile ? `(${idFile.name})` : ""}
+                      <input
+                        hidden
+                        type="file"
+                        accept="image/*,application/pdf"
+                        onChange={(e) => setIdFile(e.target.files?.[0] || null)}
+                      />
+                    </Button>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+                      {idFile ? idFile.name : "PNG, JPG, WEBP, or PDF up to 5MB"}
                     </Typography>
-                    {item.remarks && (
-                      <Typography variant="body2" color="text.secondary">
-                        Remarks: {item.remarks}
+                    {fieldErrors["idDocument.name"] && (
+                      <Typography variant="caption" color="error" sx={{ display: "block" }}>
+                        {fieldErrors["idDocument.name"]}
                       </Typography>
                     )}
+                    {fieldErrors["idDocument.dataUrl"] && (
+                      <Typography variant="caption" color="error" sx={{ display: "block" }}>
+                        {fieldErrors["idDocument.dataUrl"]}
+                      </Typography>
+                    )}
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      component="label"
+                      startIcon={<DescriptionIcon />}
+                      sx={{ py: 1.5 }}
+                      disabled={submitting}
+                    >
+                      Upload Proof of Address {addressFile ? `(${addressFile.name})` : ""}
+                      <input
+                        hidden
+                        type="file"
+                        accept="image/*,application/pdf"
+                        onChange={(e) => setAddressFile(e.target.files?.[0] || null)}
+                      />
+                    </Button>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+                      {addressFile ? addressFile.name : "Utility bill, bank statement, or similar"}
+                    </Typography>
+                    {fieldErrors["addressDocument.name"] && (
+                      <Typography variant="caption" color="error" sx={{ display: "block" }}>
+                        {fieldErrors["addressDocument.name"]}
+                      </Typography>
+                    )}
+                    {fieldErrors["addressDocument.dataUrl"] && (
+                      <Typography variant="caption" color="error" sx={{ display: "block" }}>
+                        {fieldErrors["addressDocument.dataUrl"]}
+                      </Typography>
+                    )}
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      size="large"
+                      disabled={submitting || !idFile || !addressFile}
+                      fullWidth
+                      startIcon={<VerifiedUserIcon />}
+                    >
+                      {submitting ? "Submitting..." : "Submit KYC"}
+                    </Button>
+                  </Grid>
+                </Grid>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} lg={5}>
+          <Stack spacing={3}>
+            <Card sx={{ border: "1px solid", borderColor: "divider" }}>
+              <CardContent>
+                <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
+                  <SecurityIcon color="primary" />
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                      Submission Status
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Current verification state
+                    </Typography>
                   </Box>
-                  <Chip
-                    label={KYC_STATUS_LABEL[item.status] || item.status}
-                    color={getStatusChipColor(item.status)}
-                    size="small"
-                  />
-                </Box>
-              ))}
-            </Stack>
-          )}
-        </CardContent>
-      </Card>
+                </Stack>
+                <Stack spacing={2}>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">Status</Typography>
+                    {statusBadge}
+                  </Box>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">Risk Level</Typography>
+                    <Chip
+                      label={currentKyc?.riskLevel || "Not calculated"}
+                      color={currentKyc?.riskLevel === "Low" ? "success" : currentKyc?.riskLevel === "High" ? "error" : "warning"}
+                    />
+                  </Box>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">Submitted At</Typography>
+                    <Typography variant="body1">
+                      {currentKyc?.submittedDate ? new Date(currentKyc.submittedDate).toLocaleString() : "Not submitted yet"}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">Remarks</Typography>
+                    <Typography variant="body1">
+                      {currentKyc?.remarks || "No review comments yet"}
+                    </Typography>
+                  </Box>
+                </Stack>
+              </CardContent>
+            </Card>
+
+            <Card sx={{ border: "1px solid", borderColor: "divider" }}>
+              <CardContent>
+                <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
+                  What Happens Next
+                </Typography>
+                <Stack spacing={1.5}>
+                  {[
+                    "Our compliance team reviews the documents.",
+                    "You will receive an email when the decision is made.",
+                    "Approved accounts remain active; rejected submissions can be corrected and resubmitted.",
+                  ].map((item) => (
+                    <Box key={item} sx={{ display: "flex", gap: 1.5 }}>
+                      <Box sx={{ mt: 0.75, width: 8, height: 8, borderRadius: "50%", bgcolor: "primary.main" }} />
+                      <Typography variant="body2" color="text.secondary">
+                        {item}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </CardContent>
+            </Card>
+          </Stack>
+        </Grid>
+      </Grid>
     </Box>
   );
 }
