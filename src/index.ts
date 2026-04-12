@@ -74,6 +74,20 @@ if (!fs.existsSync(uploadsDir)) {
 }
 app.use("/uploads", express.static(uploadsDir));
 
+const uploadCandidates = [
+    path.resolve(process.cwd(), "uploads"),
+    path.resolve(process.cwd(), "..", "uploads"),
+    path.resolve(__dirname, "..", "uploads"),
+    path.resolve(__dirname, "..", "..", "uploads"),
+];
+
+const uploadsRoot = uploadCandidates.find((candidate) => fs.existsSync(candidate)) || uploadCandidates[0];
+if (!fs.existsSync(uploadsRoot)) {
+    fs.mkdirSync(uploadsRoot, { recursive: true });
+}
+console.log(`📁 Serving uploads from ${uploadsRoot}`);
+app.use("/uploads", express.static(uploadsRoot));
+
 
 // ── Routes ───────────────────────────────────────────────
 app.get("/", (_req, res) => {

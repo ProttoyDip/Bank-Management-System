@@ -167,6 +167,24 @@ export default function TransactionHistory() {
     return type.replace(/_/g, " ");
   };
 
+  const isIncomingTransaction = (type: string) => {
+    return (
+      type === TransactionType.DEPOSIT ||
+      type === TransactionType.TRANSFER_IN ||
+      type === TransactionType.LOAN_DISBURSEMENT
+    );
+  };
+
+  const getAmountDisplay = (transaction: Transaction) => {
+    const amountValue = Number(transaction.amount) || 0;
+    const amount = Math.abs(amountValue);
+    const incoming = isIncomingTransaction(transaction.type);
+    return {
+      text: `${incoming ? "+" : "-"}৳${amount.toLocaleString()}`,
+      color: incoming ? "success.main" : "error.main",
+    };
+  };
+
   const filteredTransactions = transactions.filter((t) => {
     const matchesSearch = 
       t.description?.toLowerCase().includes(search.toLowerCase()) ||
@@ -336,45 +354,48 @@ export default function TransactionHistory() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredTransactions.map((transaction, index) => (
-                  <TableRow 
-                    key={transaction.id} 
-                    hover
-                    sx={{
-                      backgroundColor: search && (
-                        transaction.description?.toLowerCase().includes(search.toLowerCase()) ||
-                        transaction.referenceNumber?.toLowerCase().includes(search.toLowerCase())
-                      ) ? 'primary.50' : 'inherit',
-                    }}
-                  >
-                    <TableCell>{formatDate(transaction.createdAt)}</TableCell>
-                    <TableCell sx={{ fontFamily: "monospace", fontSize: {xs:'0.75rem', sm:'0.8rem', md:'0.85rem'} }}>
-                      {transaction.referenceNumber}
-                    </TableCell>
-                    <TableCell sx={{ maxWidth: {xs: 120, sm: 200}, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{transaction.description}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={formatType(transaction.type)}
-                        size="small"
-                        color={getTypeColor(transaction.type) as any}
-                        variant="outlined"
-                        sx={{ fontWeight: 500 }}
-                      />
-                    </TableCell>
-                    <TableCell
-                      align="right"
+                {filteredTransactions.map((transaction) => {
+                  const amountDisplay = getAmountDisplay(transaction);
+                  return (
+                    <TableRow 
+                      key={transaction.id} 
+                      hover
                       sx={{
-                        fontWeight: 600,
-                        color: transaction.amount > 0 ? "success.main" : "error.main",
+                        backgroundColor: search && (
+                          transaction.description?.toLowerCase().includes(search.toLowerCase()) ||
+                          transaction.referenceNumber?.toLowerCase().includes(search.toLowerCase())
+                        ) ? 'primary.50' : 'inherit',
                       }}
                     >
-                      {transaction.amount > 0 ? "+" : ""}৳{Math.abs(transaction.amount).toLocaleString()}
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontFamily: "monospace", fontWeight: 500 }}>
-                      ৳{transaction.balanceAfter.toLocaleString()}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      <TableCell>{formatDate(transaction.createdAt)}</TableCell>
+                      <TableCell sx={{ fontFamily: "monospace", fontSize: {xs:'0.75rem', sm:'0.8rem', md:'0.85rem'} }}>
+                        {transaction.referenceNumber}
+                      </TableCell>
+                      <TableCell sx={{ maxWidth: {xs: 120, sm: 200}, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{transaction.description}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={formatType(transaction.type)}
+                          size="small"
+                          color={getTypeColor(transaction.type) as any}
+                          variant="outlined"
+                          sx={{ fontWeight: 500 }}
+                        />
+                      </TableCell>
+                      <TableCell
+                        align="right"
+                        sx={{
+                          fontWeight: 600,
+                          color: amountDisplay.color,
+                        }}
+                      >
+                        {amountDisplay.text}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontFamily: "monospace", fontWeight: 500 }}>
+                        ৳{transaction.balanceAfter.toLocaleString()}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
                 {filteredTransactions.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} align="center" sx={{ py: 4 }}>

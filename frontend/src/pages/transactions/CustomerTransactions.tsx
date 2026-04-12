@@ -71,6 +71,23 @@ const typeColors = {
   [TransactionType.LOAN_PAYMENT]: 'warning',
 };
 
+const isIncomingTransaction = (type: string): boolean => {
+  return (
+    type === TransactionType.DEPOSIT ||
+    type === TransactionType.TRANSFER_IN ||
+    type === TransactionType.LOAN_DISBURSEMENT
+  );
+};
+
+const getSignedAmountText = (tx: Transaction): string => {
+  const amount = Math.abs(Number(tx.amount) || 0);
+  return `${isIncomingTransaction(tx.type) ? '+' : '-'}৳${amount.toLocaleString()}`;
+};
+
+const getAmountColor = (tx: Transaction): string => {
+  return isIncomingTransaction(tx.type) ? 'success.main' : 'error.main';
+};
+
 export default function CustomerTransactions() {
   const { user } = useAuth();
   const themeContext = useThemeContext();
@@ -180,7 +197,7 @@ export default function CustomerTransactions() {
         dayjs(tx.createdAt).format('YYYY-MM-DD HH:mm'),
         typeLabels[tx.type as TransactionType] || tx.type,
         tx.account?.accountNumber || 'N/A',
-        tx.amount > 0 ? `+৳${tx.amount.toLocaleString()}` : `-৳${Math.abs(tx.amount).toLocaleString()}`,
+        getSignedAmountText(tx),
         `৳${tx.balanceAfter.toLocaleString()}`,
         tx.description || '',
         tx.referenceNumber || '',
@@ -295,7 +312,7 @@ export default function CustomerTransactions() {
               Transaction Highlighted
             </Typography>
             <Typography>
-              {typeLabels[highlightedTx.type as TransactionType]} of ৳{Math.abs(highlightedTx.amount).toLocaleString()}
+              {typeLabels[highlightedTx.type as TransactionType]} of {getSignedAmountText(highlightedTx)}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               {highlightedTx.description}
@@ -391,11 +408,11 @@ export default function CustomerTransactions() {
                           variant="h5" 
                           sx={{ 
                             fontWeight: 700,
-                            color: tx.amount > 0 ? 'success.main' : 'error.main',
+                            color: getAmountColor(tx),
                             mr: 2
                           }}
                         >
-                          {tx.amount > 0 ? '+' : ''}৳{Math.abs(tx.amount).toLocaleString()}
+                          {getSignedAmountText(tx)}
                         </Typography>
                         
                         <Typography variant="body2" color="text.secondary" align="right">

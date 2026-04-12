@@ -18,9 +18,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const inFlightRef = useRef(false);
 
   const role = user?.role as UserRole | undefined;
   const loadNotifications = useCallback(async () => {
+    if (inFlightRef.current) {
+      return;
+    }
+
     if (!user || !role) {
       setNotifications([]);
       setLoading(false);
@@ -28,12 +33,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
 
     setLoading(true);
+    inFlightRef.current = true;
     try {
       const fetched = await notificationService.getNotifications();
       setNotifications(fetched);
     } catch (error) {
       console.error('Failed to load notifications:', error);
     } finally {
+      inFlightRef.current = false;
       setLoading(false);
     }
   }, [role, user]);

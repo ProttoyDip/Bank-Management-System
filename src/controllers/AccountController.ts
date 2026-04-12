@@ -274,7 +274,7 @@ export class AccountController {
       const transaction = queryRunner.manager.create(Transaction, {
         account,
         type: TransactionType.WITHDRAW,
-        amount,
+        amount: -amount,
         balanceAfter: account.balance,
         description: description || `Withdraw from account ${account.accountNumber}`,
         referenceNumber: generateReferenceNumber(),
@@ -376,7 +376,7 @@ export class AccountController {
       const fromTransaction = queryRunner.manager.create(Transaction, {
         account: fromAccount,
         type: TransactionType.TRANSFER_OUT,
-        amount,
+        amount: -amount,
         balanceAfter: fromAccount.balance,
         description: description || `Transfer to account ${toAccount.accountNumber}`,
         referenceNumber: generateReferenceNumber(),

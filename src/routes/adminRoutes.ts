@@ -1000,27 +1000,80 @@ router.patch("/transactions/:id/flag", async (req, res) => {
 
     try {
         const transactionRepository = getDataSource().getRepository(Transaction);
-        const transaction = await transactionRepository.findOne({ where: { id: Number(req.params.id) } });
+        const transaction = await transactionRepository.findOne({
+            where: { id: Number(req.params.id) },
+            relations: { account: true },
+        });
 
         if (!transaction) {
             return res.status(404).json({ success: false, message: "Transaction not found" });
         }
 
-        transaction.isFlagged = Boolean(flagged);
-        transaction.flagReason = flagged ? (reason || "Manually flagged by admin") : null;
-        transaction.status = flagged ? TransactionStatus.SUSPICIOUS : TransactionStatus.APPROVED;
-        transaction.reviewedByEmployeeId = getAdminActorId(req);
-        transaction.reviewedAt = new Date();
+        const actorId = getAdminActorId(req);
+        const nextFlagged = Boolean(flagged);
+        const nextStatus = nextFlagged ? TransactionStatus.SUSPICIOUS : TransactionStatus.APPROVED;
+        const reviewTime = new Date();
 
-        const updated = await transactionRepository.save(transaction);
+        const updateTransactionFlag = (tx: Transaction) => {
+            tx.isFlagged = nextFlagged;
+            tx.flagReason = nextFlagged ? (reason || "Manually flagged by admin") : null;
+            tx.status = nextStatus;
+            tx.reviewedByEmployeeId = actorId;
+            tx.reviewedAt = reviewTime;
+            return tx;
+        };
+
+        const transactionsToUpdate: Transaction[] = [updateTransactionFlag(transaction)];
+
+        if (transaction.type === TransactionType.TRANSFER_IN || transaction.type === TransactionType.TRANSFER_OUT) {
+            const counterpartType = transaction.type === TransactionType.TRANSFER_IN
+                ? TransactionType.TRANSFER_OUT
+                : TransactionType.TRANSFER_IN;
+            const sourceTime = new Date(transaction.createdAt).getTime();
+            const twoMinutesMs = 2 * 60 * 1000;
+            const startWindow = new Date(sourceTime - twoMinutesMs);
+            const endWindow = new Date(sourceTime + twoMinutesMs);
+
+            const candidates = await transactionRepository.find({
+                where: {
+                    type: counterpartType,
+                    createdAt: Between(startWindow, endWindow),
+                },
+                relations: { account: true },
+            });
+
+            const counterpart = candidates
+                .filter((candidate) => {
+                    if (candidate.id === transaction.id) return false;
+                    const createdAt = new Date(candidate.createdAt).getTime();
+                    if (createdAt < startWindow.getTime() || createdAt > endWindow.getTime()) return false;
+                    return Math.abs(Number(candidate.amount)) === Math.abs(Number(transaction.amount));
+                })
+                .sort((a, b) => {
+                    const aDiff = Math.abs(new Date(a.createdAt).getTime() - sourceTime);
+                    const bDiff = Math.abs(new Date(b.createdAt).getTime() - sourceTime);
+                    return aDiff - bDiff;
+                })[0];
+
+            if (counterpart) {
+                transactionsToUpdate.push(updateTransactionFlag(counterpart));
+            }
+        }
+
+        const updated = await transactionRepository.save(transactionsToUpdate);
 
         await logAdminAction(
             req,
             "FLAG_TRANSACTION",
-            `Transaction ${transaction.id} flagged=${transaction.isFlagged}`
+            `Transaction ${transaction.id} flagged=${nextFlagged}; updated=${updated.map((tx) => tx.id).join(",")}`
         );
 
-        res.json({ success: true, data: updated, message: "Transaction flag updated successfully" });
+        res.json({
+            success: true,
+            data: updated,
+            updatedTransactionIds: updated.map((tx) => tx.id),
+            message: "Transaction flag updated successfully",
+        });
     } catch (error) {
         console.error("Flag transaction error:", error);
         res.status(500).json({ success: false, message: "Failed to update transaction flag" });

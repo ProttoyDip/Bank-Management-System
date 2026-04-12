@@ -25,8 +25,10 @@ interface AdminAccount {
   id: string | number;
   accountNumber?: string;
   accountType?: string;
+  type?: string;
   balance?: number;
   status?: string;
+  isActive?: boolean;
   createdAt?: string;
   customerName?: string;
   user?: {
@@ -73,8 +75,9 @@ const AdminAccountsPage: React.FC = () => {
 
   const filteredAccounts = useMemo(() => {
     return accounts.filter((account) => {
-      const normalizedStatus = (account.status || 'UNKNOWN').toUpperCase();
-      const text = [account.accountNumber, account.accountType, getOwnerName(account)].filter(Boolean).join(' ').toLowerCase();
+      const normalizedStatus = (account.status || (account.isActive ? 'ACTIVE' : 'INACTIVE')).toUpperCase();
+      const accountTypeText = account.accountType || account.type;
+      const text = [account.accountNumber, accountTypeText, getOwnerName(account)].filter(Boolean).join(' ').toLowerCase();
       const matchesSearch = text.includes(search.toLowerCase());
       const matchesStatus = statusFilter === 'ALL' || normalizedStatus === statusFilter;
       return matchesSearch && matchesStatus;
@@ -165,12 +168,12 @@ const AdminAccountsPage: React.FC = () => {
                 </TableHead>
                 <TableBody>
                   {filteredAccounts.map((account) => {
-                    const normalizedStatus = (account.status || 'UNKNOWN').toUpperCase();
+                    const normalizedStatus = (account.status || (account.isActive ? 'ACTIVE' : 'INACTIVE')).toUpperCase();
                     return (
                       <TableRow key={account.id} hover>
                         <TableCell>{account.accountNumber || '—'}</TableCell>
                         <TableCell>{getOwnerName(account)}</TableCell>
-                        <TableCell>{account.accountType || '—'}</TableCell>
+                        <TableCell>{account.accountType || account.type || '—'}</TableCell>
                         <TableCell>
                           {typeof account.balance === 'number' ? account.balance.toLocaleString() : '—'}
                         </TableCell>

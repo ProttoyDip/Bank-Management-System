@@ -61,13 +61,29 @@ export default function CustomerAccounts() {
     if (!authUser) return;
     try {
       setLoading(true);
-      const res = await api.get<ApiResponse<Account[]>>(`/accounts/my-accounts`);
-      const userAccounts = res.data.data || [];
+      let userAccounts: Account[] = [];
+
+      try {
+        const res = await api.get<ApiResponse<Account[]>>(`/accounts/my-accounts`);
+        userAccounts = res.data.data || [];
+      } catch {
+        const fallback = await api.get<ApiResponse<Account[]>>(`/accounts/user/${authUser.id}`);
+        userAccounts = fallback.data.data || [];
+      }
+
       setAccounts(userAccounts);
       
-      const txRes = await api.get<ApiResponse<Transaction[]>>(`/transactions/my-transactions?limit=200`);
+      let transactions: Transaction[] = [];
+      try {
+        const txRes = await api.get<ApiResponse<Transaction[]>>(`/transactions/my-transactions?limit=200`);
+        transactions = txRes.data.data || [];
+      } catch {
+        const fallbackTx = await api.get<ApiResponse<Transaction[]>>(`/transactions/user/${authUser.id}?limit=200`);
+        transactions = fallbackTx.data.data || [];
+      }
+
       const txMap = new Map<number, number>();
-      (txRes.data.data || []).forEach((tx) => {
+      transactions.forEach((tx) => {
         txMap.set(tx.accountId, (txMap.get(tx.accountId) || 0) + 1);
       });
       const recentCounts: Record<number, number> = {};

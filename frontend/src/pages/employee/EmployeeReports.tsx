@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  Alert,
   Box,
   Card,
   CardContent,
@@ -12,11 +13,17 @@ import { EmployeeReportsResponse } from "../../types";
 
 export default function EmployeeReports() {
   const [reports, setReports] = useState<EmployeeReportsResponse | null>(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const load = async () => {
-      const data = await employeeService.getReports();
-      setReports(data);
+      try {
+        const data = await employeeService.getReports();
+        setReports(data);
+        setError("");
+      } catch {
+        setError("Unable to load reports right now. Please try again shortly.");
+      }
     };
     load();
   }, []);
@@ -35,8 +42,9 @@ export default function EmployeeReports() {
 
   return (
     <Box>
+      {error && <Alert severity="warning" sx={{ mb: 2 }}>{error}</Alert>}
       <Grid2 container spacing={2}>
-        <Grid2 size={{ xs: 12, lg: 6 }}>
+        <Grid2 size={{ xs: 12, lg: 6 }} sx={{ minWidth: 0 }}>
           <Card sx={{ border: "1px solid", borderColor: "divider" }}>
             <CardContent>
               <Typography variant="h6" mb={2}>Daily Transactions Report</Typography>
@@ -56,7 +64,7 @@ export default function EmployeeReports() {
             </CardContent>
           </Card>
         </Grid2>
-        <Grid2 size={{ xs: 12, lg: 6 }}>
+        <Grid2 size={{ xs: 12, lg: 6 }} sx={{ minWidth: 0 }}>
           <Card sx={{ border: "1px solid", borderColor: "divider" }}>
             <CardContent>
               <Typography variant="h6" mb={2}>Monthly Summary ({reports?.monthlySummary.month || "-"})</Typography>
@@ -75,7 +83,7 @@ export default function EmployeeReports() {
             </CardContent>
           </Card>
         </Grid2>
-        <Grid2 size={12}>
+        <Grid2 size={12} sx={{ minWidth: 0 }}>
           <Card sx={{ border: "1px solid", borderColor: "divider" }}>
             <CardContent>
               <Typography variant="h6" mb={2}>Loan Statistics</Typography>
